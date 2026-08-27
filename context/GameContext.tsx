@@ -95,7 +95,7 @@ type GameContextType = {
   startOperation: (
     missionId: string,
     duration: number
-  ) => boolean;
+  ) => string | null;
 
   advanceOperation: (
     operationId: string,
@@ -623,19 +623,23 @@ export function GameProvider({
       missionId: string,
       duration: number
     ) => {
+      const now = Date.now();
+      const operationId =
+        `${missionId}-${now}-${Math.random()
+          .toString(36)
+          .slice(2, 7)}`;
+
       let started = false;
 
       setGame((current) => {
         if (
-          current.operations.length >= 3
+          current.operations.length >= 1
         ) {
           return current;
         }
 
-        const now = Date.now();
-
         const operation: OperationState = {
-          id: `${missionId}-${now}`,
+          id: operationId,
           missionId,
           startedAt: now,
           completesAt:
@@ -660,7 +664,9 @@ export function GameProvider({
         };
       });
 
-      return started;
+      return started
+        ? operationId
+        : null;
     },
     []
   );
