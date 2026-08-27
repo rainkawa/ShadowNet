@@ -1255,15 +1255,39 @@ export default function OperationsScreen() {
 
     /*
      * Trace yükseldikçe kararlar zorlaşıyor.
-     *
-     * Oyuncu trace'i yok sayarak sürekli yüksek
-     * değerli riskli seçimleri spamlayamaz.
      */
     successChance -=
       Math.max(
         0,
         game.trace - 25
       ) * 0.12;
+
+    /*
+     * EVENT etkileri gerçek RNG'ye uygulanıyor.
+     */
+    if (
+      eventEffect === 'INSTABILITY'
+    ) {
+      successChance -= 12;
+    }
+
+    if (
+      eventEffect === 'SECURITY'
+    ) {
+      successChance -= 6;
+    }
+
+    if (
+      eventEffect === 'OPPORTUNITY'
+    ) {
+      successChance += 6;
+    }
+
+    if (
+      eventEffect === 'CLEAN'
+    ) {
+      successChance += 4;
+    }
 
     successChance =
       Math.min(
@@ -1894,12 +1918,12 @@ export default function OperationsScreen() {
                   {eventEffect && (
                     <Text style={styles.eventEffect}>
                       {eventEffect === 'SECURITY'
-                        ? 'NEXT PHASE // HIGH-RISK VECTORS RESTRICTED'
+                        ? 'NEXT PHASE // HIGH-RISK VECTORS RESTRICTED // SUCCESS -6%'
                         : eventEffect === 'INSTABILITY'
-                          ? 'NEXT PHASE // LOW-SUCCESS VECTORS RESTRICTED'
+                          ? 'NEXT PHASE // LOW-SUCCESS VECTORS RESTRICTED // SUCCESS -12%'
                           : eventEffect === 'OPPORTUNITY'
-                            ? 'NEXT PHASE // HIGH-VALUE ROUTES PRIORITIZED'
-                            : 'NEXT PHASE // LOW-TRACE ROUTES PRIORITIZED'}
+                            ? 'NEXT PHASE // HIGH-VALUE ROUTES PRIORITIZED // SUCCESS +6%'
+                            : 'NEXT PHASE // LOW-TRACE ROUTES PRIORITIZED // SUCCESS +4%'}
                     </Text>
                   )}
                 </View>

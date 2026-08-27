@@ -96,6 +96,13 @@ export default function NetworkScreen() {
 
   const [selected, setSelected] = useState('node_01');
   const [scanning, setScanning] = useState(false);
+
+  const [launching, setLaunching] =
+    useState(false);
+
+  const [cooldownUntil, setCooldownUntil] =
+    useState(0);
+
   const [message, setMessage] = useState(
     'SELECT A TARGET TO BEGIN'
   );
@@ -108,10 +115,47 @@ export default function NetworkScreen() {
   );
 
   const performScan = () => {
-    if (scanning) return;
+    if (scanning || launching) {
+      return;
+    }
 
+    /*
+     * Tarama artık bedava değil.
+     */
+    const scanCost =
+      Math.max(
+        10,
+        Math.floor(
+          35 -
+            stats.scanBonus
+        )
+      );
+
+    if (
+      game.credits <
+      scanCost
+    ) {
+      setMessage(
+        `SCAN DENIED // NEED $${scanCost}`
+      );
+      return;
+    }
+
+    /*
+     * Küçük bir gerçek maliyet.
+     */
     setScanning(true);
-    setMessage('SCANNING NETWORK...');
+
+    setMessage(
+      `SCANNING NETWORK... // COST $${scanCost}`
+    );
+
+    setTimeout(() => {
+      setScanning(false);
+      setMessage(
+        `${currentTarget.name} // SCAN COMPLETE // -$${scanCost}`
+      );
+    }, 1800);
 
     setTimeout(() => {
       setScanning(false);
@@ -122,27 +166,84 @@ export default function NetworkScreen() {
   };
 
   const launchOperation = () => {
-    if (currentTarget.status === 'LOCKED') {
-      setMessage('TARGET LOCKED // INCREASE LEVEL');
+    const now =
+      Date.now();
+
+    if (launching) {
       return;
     }
 
-    setMessage('OPERATION INITIALIZED...');
+    if (
+      now <
+      cooldownUntil
+    ) {
+      const remaining =
+        Math.ceil(
+          (
+            cooldownUntil -
+            now
+          ) /
+            1000
+        );
+
+      setMessage(
+        `COOLDOWN // ${remaining}s REMAINING`
+      );
+      return;
+    }
+
+    if (
+      currentTarget.status ===
+      'LOCKED'
+    ) {
+      setMessage(
+        'TARGET LOCKED // INCREASE LEVEL'
+      );
+      return;
+    }
+
+    /*
+     * Trace çok yüksekse operation başlatılamaz.
+     */
+    if (
+      game.trace >= 90
+    ) {
+      setMessage(
+        'TRACE CRITICAL // OPERATION BLOCKED'
+      );
+      return;
+    }
+
+    setLaunching(true);
+
+    setMessage(
+      'OPERATION INITIALIZED // ACQUIRING TARGET...'
+    );
 
     setTimeout(() => {
       // Skill + equipment bonusları başarı ihtimaline ekleniyor.
       const baseChance =
-        94 -
-        currentTarget.security +
-        (game.level - 5) * 2;
-
-      const finalChance = Math.min(
-        97,
+        76 -
+        currentTarget.security * 0.78 +
         Math.max(
-          5,
-          baseChance + stats.successBonus
-        )
-      );
+          0,
+          game.level - 1
+        ) * 1.15;
+
+      const finalChance =
+        Math.min(
+          88,
+          Math.max(
+            12,
+            baseChance +
+              stats.successBonus * 0.65 -
+              Math.max(
+                0,
+                game.trace - 25
+              ) *
+                0.22
+          )
+        );
 
       const success =
         Math.random() * 100 < finalChance;
@@ -172,11 +273,23 @@ export default function NetworkScreen() {
 
         addCredits(reward);
         addXp(earnedXp);
-        addTrace(generatedTrace);
+        addTrace(
+          Math.max(
+            1,
+            generatedTrace
+          )
+        );
         recordOperation(true);
 
+        setLaunching(false);
+
+        setCooldownUntil(
+          Date.now() +
+            6000
+        );
+
         setMessage(
-          `SUCCESS // +$${reward.toLocaleString()} // +${earnedXp} XP // TRACE +${generatedTrace}%`
+          `SUCCESS // +$${reward.toLocaleString()} // +${earnedXp} XP // TRACE +${generatedTrace}% // COOLDOWN 6s`
         );
       } else {
         const generatedTrace = Math.max(
@@ -187,11 +300,23 @@ export default function NetworkScreen() {
           )
         );
 
-        addTrace(generatedTrace);
+        addTrace(
+          Math.max(
+            generatedTrace,
+            3
+          )
+        );
         recordOperation(false);
 
+        setLaunching(false);
+
+        setCooldownUntil(
+          Date.now() +
+            10000
+        );
+
         setMessage(
-          `FAILED // ${Math.floor(finalChance)}% CHANCE // TRACE +${generatedTrace}%`
+          `FAILED // ${Math.floor(finalChance)}% CHANCE // TRACE +${generatedTrace}% // COOLDOWN 10s`
         );
       }
     }, 1400);

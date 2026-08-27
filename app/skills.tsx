@@ -19,6 +19,7 @@ type Skill = {
   cost: number;
   bonus: string;
   requiredLevel: number;
+  requires?: string[];
 };
 
 const skillData: Skill[] = [
@@ -34,6 +35,7 @@ const skillData: Skill[] = [
   },
   {
     id: 'packet_analysis',
+    requires: ['network_scan'],
     name: 'PACKET ANALYSIS',
     description: 'Analyze network traffic more efficiently.',
     branch: 'NETWORKING',
@@ -44,6 +46,7 @@ const skillData: Skill[] = [
   },
   {
     id: 'deep_scan',
+    requires: ['packet_analysis'],
     name: 'DEEP SCAN',
     description: 'Reveal hidden high-value targets.',
     branch: 'NETWORKING',
@@ -65,6 +68,7 @@ const skillData: Skill[] = [
   },
   {
     id: 'zero_day',
+    requires: ['exploit_basics'],
     name: 'ZERO DAY',
     description: 'Unlock advanced attack vectors for difficult targets.',
     branch: 'EXPLOITATION',
@@ -75,6 +79,7 @@ const skillData: Skill[] = [
   },
   {
     id: 'root_access',
+    requires: ['zero_day'],
     name: 'ROOT ACCESS',
     description: 'Gain access to heavily protected infrastructure.',
     branch: 'EXPLOITATION',
@@ -96,6 +101,7 @@ const skillData: Skill[] = [
   },
   {
     id: 'ghost_identity',
+    requires: ['proxy_chain'],
     name: 'GHOST IDENTITY',
     description: 'Reduce your digital footprint during operations.',
     branch: 'STEALTH',
@@ -106,6 +112,7 @@ const skillData: Skill[] = [
   },
   {
     id: 'vanish',
+    requires: ['ghost_identity'],
     name: 'VANISH',
     description: 'Advanced counter-trace technology.',
     branch: 'STEALTH',
@@ -127,6 +134,7 @@ const skillData: Skill[] = [
   },
   {
     id: 'botnet',
+    requires: ['scripts'],
     name: 'BOTNET CONTROL',
     description: 'Coordinate remote nodes for additional income.',
     branch: 'AUTOMATION',
@@ -137,6 +145,7 @@ const skillData: Skill[] = [
   },
   {
     id: 'autonomous',
+    requires: ['botnet'],
     name: 'AUTONOMOUS CORE',
     description: 'Run complex operations with minimal intervention.',
     branch: 'AUTOMATION',
@@ -203,17 +212,75 @@ export default function SkillsScreen() {
   }, [unlocked]);
 
   const purchaseSkill = (skill: Skill) => {
-    if (unlocked.includes(skill.id)) return;
-    if (skillPoints < skill.cost) return;
-    if (level < skill.requiredLevel) return;
+    if (unlocked.includes(skill.id)) {
+      return;
+    }
 
-    unlockSkill(skill.id, skill.cost);
+    if (
+      skillPoints < skill.cost
+    ) {
+      return;
+    }
+
+    if (
+      level < skill.requiredLevel
+    ) {
+      return;
+    }
+
+    const requirements =
+      skill.requires ?? [];
+
+    const dependenciesMet =
+      requirements.every(
+        (requiredSkill) =>
+          unlocked.includes(
+            requiredSkill
+          )
+      );
+
+    if (!dependenciesMet) {
+      return;
+    }
+
+    unlockSkill(
+      skill.id,
+      skill.cost
+    );
   };
 
   const getStatus = (skill: Skill) => {
-    if (unlocked.includes(skill.id)) return 'UNLOCKED';
-    if (level < skill.requiredLevel) return `LVL ${skill.requiredLevel}`;
-    if (skillPoints < skill.cost) return `${skill.cost} SP`;
+    if (
+      unlocked.includes(skill.id)
+    ) {
+      return 'UNLOCKED';
+    }
+
+    if (
+      level <
+      skill.requiredLevel
+    ) {
+      return `LVL ${skill.requiredLevel}`;
+    }
+
+    if (
+      skill.requires &&
+      !skill.requires.every(
+        (requiredSkill) =>
+          unlocked.includes(
+            requiredSkill
+          )
+      )
+    ) {
+      return 'REQUIRES PREVIOUS';
+    }
+
+    if (
+      skillPoints < skill.cost
+    ) {
+      return `${skill.cost} SP`;
+    }
+
     return 'AVAILABLE';
   };
 
@@ -494,7 +561,7 @@ export default function SkillsScreen() {
         </View>
 
         <Text style={styles.footer}>
-          SHADOWNET // SKILL SYSTEM v1.0
+          SHADOWNET // SKILL SYSTEM v2.0
         </Text>
       </ScrollView>
     </SafeAreaView>
