@@ -21,11 +21,18 @@ type Item = {
   rarity: string;
   effect: string;
   icon: string;
+
+  mode: 'PERMANENT' | 'CONSUMABLE';
+  stock: number;
+  requiredLevel: number;
 };
 
 const items: Item[] = [
   {
     id: 'scanner',
+    mode: 'PERMANENT',
+    stock: 12,
+    requiredLevel: 1,
     name: 'GHOST SCANNER',
     description: 'Advanced scanner capable of discovering hidden network nodes.',
     category: 'TOOLS',
@@ -36,6 +43,9 @@ const items: Item[] = [
   },
   {
     id: 'proxy',
+    mode: 'PERMANENT',
+    stock: 8,
+    requiredLevel: 2,
     name: 'ANONYMOUS PROXY',
     description: 'Multi-hop relay that reduces operational trace.',
     category: 'INFRA',
@@ -46,6 +56,9 @@ const items: Item[] = [
   },
   {
     id: 'exploit',
+    mode: 'CONSUMABLE',
+    stock: 3,
+    requiredLevel: 3,
     name: 'ZERO-DAY PACKAGE',
     description: 'A premium exploit package designed for high-security targets.',
     category: 'EXPLOITS',
@@ -56,6 +69,9 @@ const items: Item[] = [
   },
   {
     id: 'intel',
+    mode: 'CONSUMABLE',
+    stock: 4,
+    requiredLevel: 4,
     name: 'CORPORATE INTEL',
     description: 'Leaked intelligence containing valuable target information.',
     category: 'INTEL',
@@ -66,6 +82,9 @@ const items: Item[] = [
   },
   {
     id: 'botnet',
+    mode: 'PERMANENT',
+    stock: 5,
+    requiredLevel: 5,
     name: 'BOTNET NODE',
     description: 'Remote infrastructure node used for automated operations.',
     category: 'INFRA',
@@ -76,6 +95,9 @@ const items: Item[] = [
   },
   {
     id: 'quantum',
+    mode: 'PERMANENT',
+    stock: 1,
+    requiredLevel: 10,
     name: 'QUANTUM DECRYPTOR',
     description: 'Experimental hardware capable of accelerating encrypted workloads.',
     category: 'TOOLS',
@@ -115,8 +137,34 @@ export default function MarketScreen() {
   }, [activeCategory]);
 
   const buyItem = (item: Item) => {
-    if (game.ownedItems.includes(item.id)) {
-      setNotification('ITEM ALREADY INSTALLED');
+    if (
+      game.level <
+      item.requiredLevel
+    ) {
+      setNotification(
+        `LEVEL ${item.requiredLevel} REQUIRED`
+      );
+      return;
+    }
+
+    if (
+      item.stock <= 0
+    ) {
+      setNotification(
+        'OUT OF STOCK'
+      );
+      return;
+    }
+
+    if (
+      item.mode === 'PERMANENT' &&
+      game.ownedItems.includes(
+        item.id
+      )
+    ) {
+      setNotification(
+        'ITEM ALREADY INSTALLED'
+      );
       return;
     }
 
@@ -272,8 +320,24 @@ export default function MarketScreen() {
         </View>
 
         {filteredItems.map((item) => {
-          const isOwned = game.ownedItems.includes(item.id);
-          const canBuy = game.credits >= item.price;
+          const isOwned =
+            item.mode === 'PERMANENT' &&
+            game.ownedItems.includes(
+              item.id
+            );
+
+          const levelLocked =
+            game.level <
+            item.requiredLevel;
+
+          const outOfStock =
+            item.stock <= 0;
+
+          const canBuy =
+            !levelLocked &&
+            !outOfStock &&
+            game.credits >=
+              item.price;
 
           return (
             <View
@@ -327,6 +391,20 @@ export default function MarketScreen() {
                 <Text style={styles.effectValue}>
                   {item.effect}
                 </Text>
+
+                <View style={styles.itemMetaRow}>
+                  <Text style={styles.itemMeta}>
+                    {item.mode}
+                  </Text>
+
+                  <Text style={styles.itemMeta}>
+                    STOCK {item.stock}
+                  </Text>
+
+                  <Text style={styles.itemMeta}>
+                    LVL {item.requiredLevel}
+                  </Text>
+                </View>
               </View>
 
               <View style={styles.itemBottom}>
@@ -341,7 +419,11 @@ export default function MarketScreen() {
                 </View>
 
                 <Pressable
-                  disabled={isOwned}
+                  disabled={
+                    isOwned ||
+                    levelLocked ||
+                    outOfStock
+                  }
                   onPress={() => buyItem(item)}
                   style={({ pressed }) => [
                     styles.buyButton,
@@ -368,9 +450,13 @@ export default function MarketScreen() {
                   >
                     {isOwned
                       ? 'INSTALLED'
-                      : canBuy
-                        ? 'PURCHASE'
-                        : 'INSUFFICIENT'}
+                      : levelLocked
+                        ? `LVL ${item.requiredLevel}`
+                        : outOfStock
+                          ? 'SOLD OUT'
+                          : canBuy
+                            ? 'PURCHASE'
+                            : 'INSUFFICIENT'}
                   </Text>
                 </Pressable>
               </View>
@@ -439,7 +525,7 @@ export default function MarketScreen() {
         </View>
 
         <Text style={styles.footer}>
-          SHADOWNET // BLACK MARKET v1.0
+          SHADOWNET // BLACK MARKET v2.0
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -817,6 +903,21 @@ const styles = StyleSheet.create({
     color: '#414B58',
     fontSize: 5.5,
     fontWeight: '900',
+  },
+
+  itemMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 6,
+  },
+
+  itemMeta: {
+    color: '#4C6270',
+    fontSize: 5.5,
+    fontWeight: '900',
+    marginRight: 9,
+    marginTop: 2,
+    letterSpacing: 0.3,
   },
 
   effectValue: {

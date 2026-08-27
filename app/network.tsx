@@ -275,7 +275,12 @@ export default function NetworkScreen() {
                 0,
                 game.trace - 25
               ) *
-                0.22
+                0.22 -
+              Math.max(
+                0,
+                stats.heatLevel - 1
+              ) *
+                4
           )
         );
 
@@ -425,6 +430,10 @@ export default function NetworkScreen() {
             >
               {game.trace}%
             </Text>
+
+            <Text style={styles.heatText}>
+              HEAT {stats.heatLevel}
+            </Text>
           </View>
         </View>
 
@@ -448,8 +457,8 @@ export default function NetworkScreen() {
             </Text>
 
             <Text style={styles.warningText}>
-              Every operation generates trace. High trace
-              increases the risk of countermeasures.
+              Every operation generates trace. Heat levels
+              increase failure risk and reduce safe operating windows.
             </Text>
           </View>
         </View>
@@ -778,6 +787,14 @@ const styles = StyleSheet.create({
 
   dangerText: {
     color: '#FF426D',
+  },
+
+  heatText: {
+    color: '#A86C78',
+    fontSize: 5.5,
+    fontWeight: '900',
+    marginTop: 2,
+    letterSpacing: 0.5,
   },
 
   traceBar: {

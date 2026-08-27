@@ -62,6 +62,9 @@ type GameStats = {
   xpBonus: number;
   scanBonus: number;
 
+  heatLevel: number;
+  heatMultiplier: number;
+
   passiveIncome: number;
 
   cpuUsed: number;
@@ -256,6 +259,16 @@ function clamp(
   );
 }
 
+function currentHeatLevel(
+  trace: number
+) {
+  if (trace >= 90) return 5;
+  if (trace >= 70) return 4;
+  if (trace >= 50) return 3;
+  if (trace >= 25) return 2;
+  return 1;
+}
+
 export function GameProvider({
   children,
 }: {
@@ -328,6 +341,17 @@ export function GameProvider({
     let rewardBonus = 0;
     let xpBonus = 0;
     let scanBonus = 0;
+
+    const heatLevel =
+      currentHeatLevel(game.trace);
+
+    const heatMultiplier =
+      1 +
+      Math.max(
+        0,
+        heatLevel - 1
+      ) *
+        0.08;
 
     let passiveIncome = 0;
 
@@ -512,6 +536,9 @@ export function GameProvider({
       rewardBonus,
       xpBonus,
       scanBonus,
+
+      heatLevel,
+      heatMultiplier,
 
       passiveIncome,
 
