@@ -87,6 +87,7 @@ export default function NetworkScreen() {
     game,
     stats,
     addCredits,
+    spendCredits,
     addXp,
     addTrace,
     recordOperation,
@@ -150,18 +151,51 @@ export default function NetworkScreen() {
       `SCANNING NETWORK... // COST $${scanCost}`
     );
 
-    setTimeout(() => {
+    const charged =
+      spendCredits(scanCost);
+
+    if (!charged) {
       setScanning(false);
       setMessage(
-        `${currentTarget.name} // SCAN COMPLETE // -$${scanCost}`
+        `SCAN DENIED // NEED $${scanCost}`
       );
-    }, 1800);
+      return;
+    }
 
     setTimeout(() => {
       setScanning(false);
-      setMessage(
-        `${currentTarget.name} // SCAN COMPLETE`
-      );
+
+      /*
+       * Scan sonucu hedefe göre değişiyor.
+       */
+      const discoveryRoll =
+        Math.random() *
+        100;
+
+      const discoveryChance =
+        Math.min(
+          95,
+          Math.max(
+            25,
+            55 +
+              stats.scanBonus -
+              currentTarget.security *
+                0.30
+          )
+        );
+
+      if (
+        discoveryRoll <
+        discoveryChance
+      ) {
+        setMessage(
+          `${currentTarget.name} // SCAN COMPLETE // -$${scanCost} // SIGNAL CONFIRMED`
+        );
+      } else {
+        setMessage(
+          `${currentTarget.name} // SCAN PARTIAL // -$${scanCost} // SIGNAL UNCERTAIN`
+        );
+      }
     }, 1800);
   };
 
@@ -584,6 +618,7 @@ export default function NetworkScreen() {
             </Pressable>
 
             <Pressable
+              disabled={launching}
               onPress={launchOperation}
               style={({ pressed }) => [
                 styles.primaryButton,
@@ -591,7 +626,9 @@ export default function NetworkScreen() {
               ]}
             >
               <Text style={styles.primaryText}>
-                LAUNCH OPERATION
+                {launching
+                  ? 'INITIALIZING...'
+                  : 'LAUNCH OPERATION'}
               </Text>
             </Pressable>
           </View>
@@ -616,7 +653,7 @@ export default function NetworkScreen() {
         </View>
 
         <Text style={styles.footer}>
-          SHADOWNET // NETWORK CONTROL v1.0
+          SHADOWNET // NETWORK CONTROL v2.0
         </Text>
       </ScrollView>
     </SafeAreaView>

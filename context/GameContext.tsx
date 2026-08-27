@@ -52,6 +52,7 @@ type GameState = {
   lastOperationResetAt: number;
 
   lastActiveAt: number;
+  lastTraceReductionAt: number;
 };
 
 type GameStats = {
@@ -84,6 +85,7 @@ type GameContextType = {
   clearRankUp: () => void;
 
   addCredits: (amount: number) => void;
+  spendCredits: (amount: number) => boolean;
   collectPassiveIncome: () => number;
 
   addXp: (amount: number) => void;
@@ -187,6 +189,8 @@ const INITIAL_STATE: GameState = {
   lastOperationResetAt: Date.now(),
 
   lastActiveAt: Date.now(),
+
+  lastTraceReductionAt: 0,
 };
 
 const GameContext =
@@ -547,6 +551,43 @@ export function GameProvider({
    * Saniyelik gelir korunuyor fakat çok daha düşük.
    * 8 saat cap devam ediyor.
    */
+  const spendCredits = useCallback(
+    (amount: number) => {
+      if (
+        !Number.isFinite(amount) ||
+        amount <= 0
+      ) {
+        return false;
+      }
+
+      const cost =
+        Math.floor(amount);
+
+      let spent = false;
+
+      setGame((current) => {
+        if (
+          current.credits < cost
+        ) {
+          return current;
+        }
+
+        spent = true;
+
+        return {
+          ...current,
+          credits:
+            current.credits - cost,
+          lastActiveAt:
+            Date.now(),
+        };
+      });
+
+      return spent;
+    },
+    []
+  );
+
   const collectPassiveIncome =
     useCallback(() => {
       const now = Date.now();
@@ -763,7 +804,68 @@ export function GameProvider({
           0,
           100
         ),
+        lastActiveAt:
+          Date.now(),
       }));
+    },
+    []
+  );
+
+  const reduceTraceSafely = useCallback(
+    (
+      amount: number,
+      cooldownMs: number
+    ) => {
+      if (
+        !Number.isFinite(amount) ||
+        amount <= 0 ||
+        !Number.isFinite(cooldownMs) ||
+        cooldownMs < 0
+      ) {
+        return false;
+      }
+
+      const now =
+        Date.now();
+
+      let reduced = false;
+
+      setGame((current) => {
+        if (
+          current.trace <= 0
+        ) {
+          return current;
+        }
+
+        if (
+          now -
+            current.lastTraceReductionAt <
+          cooldownMs
+        ) {
+          return current;
+        }
+
+        reduced = true;
+
+        return {
+          ...current,
+
+          trace: clamp(
+            current.trace -
+              Math.floor(amount),
+            0,
+            100
+          ),
+
+          lastTraceReductionAt:
+            now,
+
+          lastActiveAt:
+            now,
+        };
+      });
+
+      return reduced;
     },
     []
   );
@@ -1787,12 +1889,14 @@ export function GameProvider({
         clearRankUp,
 
         addCredits,
+        spendCredits,
         collectPassiveIncome,
 
         addXp,
 
         addTrace,
         reduceTrace,
+        reduceTraceSafely,
 
         addSkillPoints,
         addReputation,
@@ -1833,6 +1937,7 @@ export function GameProvider({
 
         addTrace,
         reduceTrace,
+        reduceTraceSafely,
 
         addSkillPoints,
         addReputation,
