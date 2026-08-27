@@ -874,6 +874,12 @@ export default function OperationsScreen() {
 
   const [decisionHistory, setDecisionHistory] =
     useState<string[]>([]);
+
+  const [rewardModifierTotal, setRewardModifierTotal] =
+    useState(0);
+
+  const [xpModifierTotal, setXpModifierTotal] =
+    useState(0);
   const [operationTrace, setOperationTrace] =
     useState(0);
 
@@ -1052,6 +1058,8 @@ export default function OperationsScreen() {
     setOperationTrace(0);
     setPhaseRoll(null);
     setDecisionHistory([]);
+    setRewardModifierTotal(0);
+    setXpModifierTotal(0);
     setOutcome(null);
     setMessage(
       'SELECT A CONTRACT TO BEGIN'
@@ -1089,6 +1097,8 @@ export default function OperationsScreen() {
     setOperationTrace(0);
     setPhaseRoll(null);
     setDecisionHistory([]);
+    setRewardModifierTotal(0);
+    setXpModifierTotal(0);
     setOutcome(null);
     setMessage(
       'CONNECTION ESTABLISHED // AWAITING INPUT'
@@ -1269,6 +1279,20 @@ export default function OperationsScreen() {
       ]
     );
 
+    /*
+     * Seçilen yolun ödül ve XP etkisini operasyon
+     * boyunca biriktiriyoruz.
+     */
+    setRewardModifierTotal(
+      (current) =>
+        current + choice.rewardModifier
+    );
+
+    setXpModifierTotal(
+      (current) =>
+        current + choice.xpModifier
+    );
+
     setPhaseRoll(
       Math.floor(roll)
     );
@@ -1343,6 +1367,17 @@ export default function OperationsScreen() {
     if (
       phase >= 4
     ) {
+      /*
+       * Son seçim de dahil olmak üzere tüm yolun modifierı.
+       */
+      const finalRewardModifier =
+        rewardModifierTotal +
+        choice.rewardModifier;
+
+      const finalXpModifier =
+        xpModifierTotal +
+        choice.xpModifier;
+
       if (
         nextMistakes === 0
       ) {
@@ -1380,7 +1415,7 @@ export default function OperationsScreen() {
           );
 
           setMessage(
-            'PERFECT RUN // CRITICAL EXECUTION'
+            `PERFECT RUN // CRITICAL EXECUTION // PAYOUT ${finalRewardModifier >= 0 ? '+' : ''}${finalRewardModifier}% // XP ${finalXpModifier >= 0 ? '+' : ''}${finalXpModifier}%`
           );
         } else {
           setOutcome(
@@ -1388,7 +1423,7 @@ export default function OperationsScreen() {
           );
 
           setMessage(
-            'OPERATION COMPLETE // CLEAN EXECUTION'
+            `OPERATION COMPLETE // PAYOUT ${finalRewardModifier >= 0 ? '+' : ''}${finalRewardModifier}% // XP ${finalXpModifier >= 0 ? '+' : ''}${finalXpModifier}%`
           );
         }
       } else {
@@ -1397,7 +1432,7 @@ export default function OperationsScreen() {
         );
 
         setMessage(
-          'OPERATION COMPLETE // DAMAGE CONTROL PAYOUT'
+          `OPERATION COMPLETE // DAMAGE CONTROL // PAYOUT ${finalRewardModifier >= 0 ? '+' : ''}${finalRewardModifier}% // XP ${finalXpModifier >= 0 ? '+' : ''}${finalXpModifier}%`
         );
       }
     } else {
@@ -1423,8 +1458,69 @@ export default function OperationsScreen() {
     const result =
       resolveOperation(
         selectedOperationId,
-        activeMission.reward,
-        activeMission.xp,
+        Math.max(
+          1,
+          Math.floor(
+            activeMission.reward *
+              (
+                1 +
+                Math.min(
+                  100,
+                  Math.max(
+                    -75,
+                    rewardModifierTotal +
+                      decisionHistory.reduce(
+                        (sum, id) => {
+                          const phaseData =
+                            choices[
+                              activeMission.id
+                            ] ?? [];
+
+                          for (
+                            const phaseDataItem
+                              of phaseData
+                          ) {
+                            const found =
+                              phaseDataItem.choices.find(
+                                (item) =>
+                                  item.id === id
+                              );
+
+                            if (found) {
+                              return (
+                                sum +
+                                found.rewardModifier
+                              );
+                            }
+                          }
+
+                          return sum;
+                        },
+                        0
+                      )
+                  )
+                ) /
+                  100
+              )
+          )
+        ),
+        Math.max(
+          1,
+          Math.floor(
+            activeMission.xp *
+              (
+                1 +
+                Math.min(
+                  150,
+                  Math.max(
+                    0,
+                    xpModifierTotal
+                  )
+                ) /
+                  100
+              )
+          )
+        ),
         5
       );
 
@@ -1691,10 +1787,18 @@ export default function OperationsScreen() {
 
                         <Text style={styles.choiceMeta}>
                           {choice.rewardModifier > 0
-                            ? `HIGH PAYOUT +${choice.rewardModifier}%`
+                            ? `PAYOUT +${choice.rewardModifier}%`
                             : choice.rewardModifier < 0
-                              ? `LOW PAYOUT ${choice.rewardModifier}%`
+                              ? `PAYOUT ${choice.rewardModifier}%`
                               : 'STANDARD PAYOUT'}
+                        </Text>
+
+                        <Text style={styles.choiceMeta}>
+                          {choice.xpModifier > 0
+                            ? `XP +${choice.xpModifier}%`
+                            : choice.xpModifier < 0
+                              ? `XP ${choice.xpModifier}%`
+                              : 'STANDARD XP'}
                         </Text>
                       </View>
                     </View>
