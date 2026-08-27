@@ -1,11 +1,18 @@
 import React, {
   createContext,
+  useCallback,
   useContext,
   useMemo,
-  useCallback,
   useState,
   ReactNode,
 } from 'react';
+
+type OperationOutcome =
+  | 'RUNNING'
+  | 'SUCCESS'
+  | 'PARTIAL'
+  | 'FAILURE'
+  | 'CRITICAL_FAILURE';
 
 type OperationState = {
   id: string;
@@ -17,13 +24,9 @@ type OperationState = {
   mistakes: number;
   warnings: number;
   traceGenerated: number;
+
   completed: boolean;
-  outcome:
-    | 'RUNNING'
-    | 'SUCCESS'
-    | 'PARTIAL'
-    | 'FAILURE'
-    | 'CRITICAL_FAILURE';
+  outcome: OperationOutcome;
 };
 
 type GameState = {
@@ -57,6 +60,7 @@ type GameStats = {
   rewardBonus: number;
   xpBonus: number;
   scanBonus: number;
+
   passiveIncome: number;
 
   cpuUsed: number;
@@ -139,10 +143,23 @@ type GameContextType = {
 };
 
 const INITIAL_STATE: GameState = {
-  credits: 250,
+  /*
+   * ECONOMY V2
+   *
+   * Eski 250 kredi başlangıç için fazla cömertti.
+   * Oyuncu ilk dakikada market ekonomisini ezemesin.
+   */
+  credits: 100,
+
   xp: 0,
   level: 1,
-  trace: 5,
+
+  /*
+   * Başlangıç trace'i artık biraz daha anlamlı.
+   * Oyuncu direkt olarak tamamen temiz başlamıyor.
+   */
+  trace: 3,
+
   skillPoints: 0,
   reputation: 0,
 
@@ -154,7 +171,11 @@ const INITIAL_STATE: GameState = {
   unlockedSkills: [],
 
   infrastructure: {
-    scrap: 1,
+    /*
+     * Passive ekonomi baştan açık değil.
+     * İlk node'u oyuncu satın almak zorunda.
+     */
+    scrap: 0,
     proxy: 0,
     rack: 0,
     datacenter: 0,
@@ -178,27 +199,57 @@ function getRank(level: number) {
   if (level >= 20) return 'SPECIALIST';
   if (level >= 10) return 'OPERATIVE';
   if (level >= 5) return 'RUNNER';
+
   return 'ROOKIE';
 }
 
-function getNextRank(level: number): string | null {
+function getNextRank(
+  level: number
+): string | null {
   if (level < 5) return 'RUNNER';
   if (level < 10) return 'OPERATIVE';
   if (level < 20) return 'SPECIALIST';
   if (level < 30) return 'GHOST';
   if (level < 40) return 'ELITE';
   if (level < 50) return 'SHADOW';
+
   return null;
 }
 
 function getRankProgress(level: number) {
   if (level >= 50) return 100;
-  if (level < 5) return (level / 5) * 100;
-  if (level < 10) return ((level - 5) / 5) * 100;
-  if (level < 20) return ((level - 10) / 10) * 100;
-  if (level < 30) return ((level - 20) / 10) * 100;
-  if (level < 40) return ((level - 30) / 10) * 100;
+  if (level < 5) {
+    return (level / 5) * 100;
+  }
+
+  if (level < 10) {
+    return ((level - 5) / 5) * 100;
+  }
+
+  if (level < 20) {
+    return ((level - 10) / 10) * 100;
+  }
+
+  if (level < 30) {
+    return ((level - 20) / 10) * 100;
+  }
+
+  if (level < 40) {
+    return ((level - 30) / 10) * 100;
+  }
+
   return ((level - 40) / 10) * 100;
+}
+
+function clamp(
+  value: number,
+  min: number,
+  max: number
+) {
+  return Math.min(
+    max,
+    Math.max(min, value)
+  );
 }
 
 export function GameProvider({
@@ -219,20 +270,30 @@ export function GameProvider({
     setRankUpMessage(null);
   }, []);
 
+  /*
+   * XP CURVE V2
+   *
+   * Level yükseldikçe gereken XP daha sert artıyor.
+   */
   const xpRequired = useMemo(() => {
     return Math.floor(
-      500 + Math.pow(game.level, 1.35) * 120
+      650 +
+        Math.pow(game.level, 1.45) *
+          145
     );
   }, [game.level]);
 
   const xpProgress = useMemo(() => {
-    if (xpRequired <= 0) return 0;
+    if (xpRequired <= 0) {
+      return 0;
+    }
 
-    return Math.min(
-      100,
+    return clamp(
       Math.floor(
         (game.xp / xpRequired) * 100
-      )
+      ),
+      0,
+      100
     );
   }, [game.xp, xpRequired]);
 
@@ -251,12 +312,19 @@ export function GameProvider({
     [game.level]
   );
 
+  /*
+   * STATS
+   *
+   * Burada item ve skill etkilerini gerçekten
+   * sayısal olarak topluyoruz.
+   */
   const stats = useMemo<GameStats>(() => {
     let successBonus = 0;
     let traceReduction = 0;
     let rewardBonus = 0;
     let xpBonus = 0;
     let scanBonus = 0;
+
     let passiveIncome = 0;
 
     const scrap =
@@ -278,11 +346,11 @@ export function GameProvider({
       datacenter * 100;
 
     const cpuCapacity =
-      100 +
+      70 +
       Math.max(
         0,
         game.level - 1
-      ) * 25;
+      ) * 20;
 
     const cpuAvailable =
       Math.max(
@@ -290,10 +358,16 @@ export function GameProvider({
         cpuCapacity - cpuUsed
       );
 
-    passiveIncome += scrap * 2;
-    passiveIncome += proxy * 12;
-    passiveIncome += rack * 35;
-    passiveIncome += datacenter * 150;
+    /*
+     * PASSIVE ECONOMY V2
+     *
+     * Önceki değerler oyunu çok hızlı besliyordu.
+     * Yeni değerler intentionally düşük.
+     */
+    passiveIncome += scrap * 0.5;
+    passiveIncome += proxy * 2;
+    passiveIncome += rack * 7;
+    passiveIncome += datacenter * 25;
 
     if (
       game.unlockedSkills.includes(
@@ -308,7 +382,7 @@ export function GameProvider({
         'exploit_basics'
       )
     ) {
-      successBonus += 8;
+      successBonus += 6;
     }
 
     if (
@@ -316,7 +390,23 @@ export function GameProvider({
         'proxy_chain'
       )
     ) {
-      traceReduction += 10;
+      traceReduction += 8;
+    }
+
+    if (
+      game.unlockedSkills.includes(
+        'ghost_identity'
+      )
+    ) {
+      traceReduction += 12;
+    }
+
+    if (
+      game.unlockedSkills.includes(
+        'vanish'
+      )
+    ) {
+      traceReduction += 18;
     }
 
     if (
@@ -324,9 +414,45 @@ export function GameProvider({
         'scripts'
       )
     ) {
-      xpBonus += 10;
+      xpBonus += 5;
+      passiveIncome *= 1.05;
     }
 
+    if (
+      game.unlockedSkills.includes(
+        'packet_analysis'
+      )
+    ) {
+      successBonus += 4;
+    }
+
+    if (
+      game.unlockedSkills.includes(
+        'zero_day'
+      )
+    ) {
+      successBonus += 7;
+    }
+
+    if (
+      game.unlockedSkills.includes(
+        'root_access'
+      )
+    ) {
+      rewardBonus += 10;
+    }
+
+    if (
+      game.unlockedSkills.includes(
+        'deep_scan'
+      )
+    ) {
+      scanBonus += 15;
+    }
+
+    /*
+     * ITEM BONUSES
+     */
     if (
       game.ownedItems.includes(
         'scanner'
@@ -348,7 +474,7 @@ export function GameProvider({
         'exploit'
       )
     ) {
-      successBonus += 20;
+      successBonus += 12;
     }
 
     if (
@@ -356,7 +482,7 @@ export function GameProvider({
         'intel'
       )
     ) {
-      rewardBonus += 25;
+      rewardBonus += 12;
     }
 
     if (
@@ -364,7 +490,7 @@ export function GameProvider({
         'botnet'
       )
     ) {
-      passiveIncome += 18;
+      passiveIncome += 3;
     }
 
     if (
@@ -372,8 +498,8 @@ export function GameProvider({
         'quantum'
       )
     ) {
-      successBonus += 15;
-      xpBonus += 20;
+      successBonus += 8;
+      xpBonus += 10;
     }
 
     return {
@@ -382,7 +508,9 @@ export function GameProvider({
       rewardBonus,
       xpBonus,
       scanBonus,
+
       passiveIncome,
+
       cpuUsed,
       cpuCapacity,
       cpuAvailable,
@@ -396,27 +524,41 @@ export function GameProvider({
 
   const addCredits = useCallback(
     (amount: number) => {
-      if (amount <= 0) return;
+      if (
+        !Number.isFinite(amount) ||
+        amount <= 0
+      ) {
+        return;
+      }
 
       setGame((current) => ({
         ...current,
         credits:
-          current.credits + amount,
+          current.credits +
+          Math.floor(amount),
       }));
     },
     []
   );
 
+  /*
+   * OFFLINE / PASSIVE INCOME
+   *
+   * Saniyelik gelir korunuyor fakat çok daha düşük.
+   * 8 saat cap devam ediyor.
+   */
   const collectPassiveIncome =
     useCallback(() => {
       const now = Date.now();
+
       let earned = 0;
 
       setGame((current) => {
         const elapsedSeconds =
           Math.max(
             0,
-            (now - current.lastActiveAt) /
+            (now -
+              current.lastActiveAt) /
               1000
           );
 
@@ -426,36 +568,52 @@ export function GameProvider({
             8 * 60 * 60
           );
 
-        let income = 0;
+        let incomePerSecond = 0;
 
-        income +=
-          (current.infrastructure.scrap ?? 0) * 2;
+        incomePerSecond +=
+          (current.infrastructure
+            .scrap ?? 0) * 0.5;
 
-        income +=
-          (current.infrastructure.proxy ?? 0) * 12;
+        incomePerSecond +=
+          (current.infrastructure
+            .proxy ?? 0) * 2;
 
-        income +=
-          (current.infrastructure.rack ?? 0) * 35;
+        incomePerSecond +=
+          (current.infrastructure
+            .rack ?? 0) * 7;
 
-        income +=
-          (current.infrastructure.datacenter ?? 0) * 150;
+        incomePerSecond +=
+          (current.infrastructure
+            .datacenter ?? 0) * 25;
 
         if (
           current.ownedItems.includes(
             'botnet'
           )
         ) {
-          income += 18;
+          incomePerSecond += 3;
+        }
+
+        if (
+          current.unlockedSkills.includes(
+            'scripts'
+          )
+        ) {
+          incomePerSecond *= 1.05;
         }
 
         earned = Math.floor(
-          cappedSeconds * income
+          cappedSeconds *
+            incomePerSecond
         );
 
         return {
           ...current,
+
           credits:
-            current.credits + earned,
+            current.credits +
+            Math.max(0, earned),
+
           lastActiveAt: now,
         };
       });
@@ -465,14 +623,22 @@ export function GameProvider({
 
   const addXp = useCallback(
     (amount: number) => {
-      if (amount <= 0) return;
+      if (
+        !Number.isFinite(amount) ||
+        amount <= 0
+      ) {
+        return;
+      }
 
       setGame((current) => {
         const previousRank =
-          getRank(current.level);
+          getRank(
+            current.level
+          );
 
         let nextXp =
-          current.xp + amount;
+          current.xp +
+          Math.floor(amount);
 
         let nextLevel =
           current.level;
@@ -482,12 +648,12 @@ export function GameProvider({
 
         let required =
           Math.floor(
-            500 +
+            650 +
               Math.pow(
                 nextLevel,
-                1.35
+                1.45
               ) *
-              120
+                145
           );
 
         while (
@@ -495,21 +661,29 @@ export function GameProvider({
           nextLevel < 50
         ) {
           nextXp -= required;
+
           nextLevel += 1;
+
+          /*
+           * Her level sadece 1 SP.
+           * Böylece skill ağacı da ekonomi kadar hızlı bitmiyor.
+           */
           nextSkillPoints += 1;
 
           required =
             Math.floor(
-              500 +
+              650 +
                 Math.pow(
                   nextLevel,
-                  1.35
+                  1.45
                 ) *
-                120
+                  145
             );
         }
 
-        if (nextLevel >= 50) {
+        if (
+          nextLevel >= 50
+        ) {
           nextXp = Math.min(
             nextXp,
             required
@@ -520,21 +694,26 @@ export function GameProvider({
           getRank(nextLevel);
 
         if (
-          nextRank !== previousRank
+          nextRank !==
+          previousRank
         ) {
           setRankUpMessage(
             `RANK UP // ${nextRank}`
           );
 
           setRankUpVersion(
-            (value) => value + 1
+            (value) =>
+              value + 1
           );
         }
 
         return {
           ...current,
+
           xp: nextXp,
+
           level: nextLevel,
+
           skillPoints:
             nextSkillPoints,
         };
@@ -545,13 +724,21 @@ export function GameProvider({
 
   const addTrace = useCallback(
     (amount: number) => {
-      if (amount <= 0) return;
+      if (
+        !Number.isFinite(amount) ||
+        amount <= 0
+      ) {
+        return;
+      }
 
       setGame((current) => ({
         ...current,
-        trace: Math.min(
-          100,
-          current.trace + amount
+
+        trace: clamp(
+          current.trace +
+            Math.floor(amount),
+          0,
+          100
         ),
       }));
     },
@@ -560,521 +747,81 @@ export function GameProvider({
 
   const reduceTrace = useCallback(
     (amount: number) => {
-      if (amount <= 0) return;
+      if (
+        !Number.isFinite(amount) ||
+        amount <= 0
+      ) {
+        return;
+      }
 
       setGame((current) => ({
         ...current,
-        trace: Math.max(
+
+        trace: clamp(
+          current.trace -
+            Math.floor(amount),
           0,
-          current.trace - amount
+          100
         ),
       }));
     },
     []
   );
 
-  const addSkillPoints = useCallback(
-    (amount: number) => {
-      if (amount <= 0) return;
-
-      setGame((current) => ({
-        ...current,
-        skillPoints:
-          current.skillPoints + amount,
-      }));
-    },
-    []
-  );
-
-  const addReputation = useCallback(
-    (amount: number) => {
-      if (amount === 0) return;
-
-      setGame((current) => ({
-        ...current,
-        reputation: Math.max(
-          0,
-          current.reputation + amount
-        ),
-      }));
-    },
-    []
-  );
-
-  const recordOperation = useCallback(
-    (success: boolean) => {
-      setGame((current) => ({
-        ...current,
-        totalOperations:
-          current.totalOperations + 1,
-        successfulOperations:
-          current.successfulOperations +
-          (success ? 1 : 0),
-        failedOperations:
-          current.failedOperations +
-          (success ? 0 : 1),
-      }));
-    },
-    []
-  );
-
-  const startOperation = useCallback(
-    (
-      missionId: string,
-      duration: number
-    ) => {
-      const now = Date.now();
-      const operationId =
-        `${missionId}-${now}-${Math.random()
-          .toString(36)
-          .slice(2, 7)}`;
-
-      let started = false;
-
-      setGame((current) => {
+  const addSkillPoints =
+    useCallback(
+      (amount: number) => {
         if (
-          current.operations.length >= 1
+          !Number.isFinite(amount) ||
+          amount <= 0
         ) {
-          return current;
+          return;
         }
 
-        const operation: OperationState = {
-          id: operationId,
-          missionId,
-          startedAt: now,
-          completesAt:
-            now + duration * 1000,
-
-          phase: 0,
-          mistakes: 0,
-          warnings: 0,
-          traceGenerated: 0,
-          completed: false,
-          outcome: 'RUNNING',
-        };
-
-        started = true;
-
-        return {
-          ...current,
-          operations: [
-            ...current.operations,
-            operation,
-          ],
-        };
-      });
-
-      return started
-        ? operationId
-        : null;
-    },
-    []
-  );
-
-  const advanceOperation = useCallback(
-    (
-      operationId: string,
-      success: boolean,
-      tracePenalty: number
-    ) => {
-      let advanced = false;
-
-      setGame((current) => {
-        const operation =
-          current.operations.find(
-            (item) =>
-              item.id === operationId
-          );
-
-        if (
-          !operation ||
-          operation.completed
-        ) {
-          return current;
-        }
-
-        advanced = true;
-
-        if (success) {
-          return {
-            ...current,
-            operations:
-              current.operations.map(
-                (item) =>
-                  item.id === operationId
-                    ? {
-                        ...item,
-                        phase:
-                          item.phase + 1,
-                      }
-                    : item
-              ),
-          };
-        }
-
-        const nextMistakes =
-          operation.mistakes + 1;
-
-        const nextTrace =
-          Math.min(
-            100,
-            current.trace +
-              tracePenalty
-          );
-
-        const criticalFailure =
-          nextMistakes >= 2 ||
-          nextTrace >= 100;
-
-        return {
+        setGame((current) => ({
           ...current,
 
-          trace: nextTrace,
+          skillPoints:
+            current.skillPoints +
+            Math.floor(amount),
+        }));
+      },
+      []
+    );
 
-          operations:
-            current.operations.map(
-              (item) =>
-                item.id === operationId
-                  ? {
-                      ...item,
-                      phase:
-                        item.phase + 1,
-                      mistakes:
-                        nextMistakes,
-                      warnings:
-                        item.warnings + 1,
-                      traceGenerated:
-                        item.traceGenerated +
-                        tracePenalty,
-                      completed:
-                        criticalFailure,
-                      outcome:
-                        criticalFailure
-                          ? 'CRITICAL_FAILURE'
-                          : 'RUNNING',
-                    }
-                  : item
-            ),
-        };
-      });
-
-      return advanced;
-    },
-    []
-  );
-
-  const resolveOperation = useCallback(
-    (
-      operationId: string,
-      reward: number,
-      xp: number,
-      reputation: number
-    ) => {
-      let resolved = false;
-
-      setGame((current) => {
-        const operation =
-          current.operations.find(
-            (item) =>
-              item.id === operationId
-          );
-
-        if (!operation) {
-          return current;
-        }
-
+  const addReputation =
+    useCallback(
+      (amount: number) => {
         if (
-          operation.outcome ===
-          'CRITICAL_FAILURE'
+          !Number.isFinite(amount) ||
+          amount === 0
         ) {
-          resolved = true;
-
-          return {
-            ...current,
-
-            totalOperations:
-              current.totalOperations + 1,
-
-            failedOperations:
-              current.failedOperations + 1,
-
-            completedToday:
-              current.completedToday + 1,
-
-            operations:
-              current.operations.filter(
-                (item) =>
-                  item.id !== operationId
-              ),
-
-            lastActiveAt:
-              Date.now(),
-          };
+          return;
         }
 
-        if (
-          operation.phase < 3 ||
-          operation.completed
-        ) {
-          return current;
-        }
-
-        resolved = true;
-
-        const criticalSuccess =
-          operation.mistakes === 0 &&
-          Math.random() < 0.15;
-
-        const success =
-          operation.mistakes === 0;
-
-        const rewardMultiplier =
-          criticalSuccess
-            ? 1.75
-            : success
-              ? 1
-              : 0.45;
-
-        const xpMultiplier =
-          criticalSuccess
-            ? 1.5
-            : success
-              ? 1
-              : 0.6;
-
-        const finalReward =
-          Math.floor(
-            reward *
-              rewardMultiplier *
-              (1 +
-                stats.rewardBonus / 100)
-          );
-
-        const finalXp =
-          Math.floor(
-            xp *
-              xpMultiplier *
-              (1 +
-                stats.xpBonus / 100)
-          );
-
-        const finalReputation =
-          criticalSuccess
-            ? Math.max(
-                1,
-                Math.floor(
-                  reputation * 1.8
-                )
-              )
-            : success
-              ? reputation
-              : -Math.max(
-                  1,
-                  Math.floor(
-                    reputation * 0.5
-                  )
-                );
-
-        return {
+        setGame((current) => ({
           ...current,
-
-          credits:
-            current.credits +
-            finalReward,
-
-          operations:
-            current.operations.map(
-              (item) =>
-                item.id === operationId
-                  ? {
-                      ...item,
-                      completed: true,
-                      outcome:
-                        criticalSuccess
-                          ? 'SUCCESS'
-                          : success
-                            ? 'SUCCESS'
-                            : 'PARTIAL',
-                    }
-                  : item
-            ),
-
-          xp:
-            current.xp +
-            finalXp,
 
           reputation:
             Math.max(
               0,
               current.reputation +
-                finalReputation
+                Math.floor(amount)
             ),
+        }));
+      },
+      []
+    );
 
-          totalOperations:
-            current.totalOperations + 1,
-
-          successfulOperations:
-            current.successfulOperations +
-            (success ? 1 : 0),
-
-          failedOperations:
-            current.failedOperations +
-            (!success ? 1 : 0),
-
-          completedToday:
-            current.completedToday + 1,
-
-          operations:
-            current.operations.filter(
-              (item) =>
-                item.id !== operationId
-            ),
-
-          lastActiveAt:
-            Date.now(),
-        };
-      });
-
-      return resolved;
-    },
-    [stats]
-  );
-
-
-  const claimOperation = useCallback(
-    (
-      operationId: string,
-      reward: number,
-      xp: number,
-      reputation: number,
-      security: number,
-      risk: number
-    ) => {
-      /*
-       * Legacy timer operation.
-       *
-       * Interactive Operation V2 does NOT use this
-       * function. It is kept only for compatibility
-       * with older screens/components.
-       */
-
-      let claimed = false;
-
-      setGame((current) => {
-        const operation =
-          current.operations.find(
-            (item) =>
-              item.id === operationId
-          );
-
-        if (!operation) {
-          return current;
-        }
-
-        if (
-          Date.now() <
-          operation.completesAt
-        ) {
-          return current;
-        }
-
-        claimed = true;
-
-        const difficulty =
-          security * 0.55 +
-          risk * 0.45;
-
-        const levelBonus =
-          current.level * 2;
-
-        const successChance =
-          Math.min(
-            95,
-            Math.max(
-              15,
-              72 +
-                levelBonus +
-                stats.successBonus -
-                difficulty
-            )
-          );
-
-        const success =
-          Math.random() * 100 <
-          successChance;
-
-        const rewardMultiplier =
-          1 +
-          stats.rewardBonus / 100;
-
-        const xpMultiplier =
-          1 +
-          stats.xpBonus / 100;
-
-        const finalReward =
-          Math.floor(
-            reward * rewardMultiplier
-          );
-
-        const finalXp =
-          Math.floor(
-            xp * xpMultiplier
-          );
-
-        return {
+  const recordOperation =
+    useCallback(
+      (success: boolean) => {
+        setGame((current) => ({
           ...current,
 
-          credits:
-            current.credits +
-            (success
-              ? finalReward
-              : 0),
-
-          xp:
-            current.xp +
-            (success
-              ? finalXp
-              : 0),
-
-          reputation:
-            Math.max(
-              0,
-              current.reputation +
-                (success
-                  ? reputation
-                  : -Math.max(
-                      1,
-                      Math.floor(
-                        risk / 12
-                      )
-                    ))
-            ),
-
-          trace:
-            Math.min(
-              100,
-              current.trace +
-                (success
-                  ? Math.max(
-                      1,
-                      Math.floor(
-                        3 -
-                          stats.traceReduction /
-                            20
-                      )
-                    )
-                  : Math.max(
-                      3,
-                      Math.floor(
-                        risk / 8 -
-                          stats.traceReduction /
-                            15
-                      )
-                    ))
-            ),
-
           totalOperations:
-            current.totalOperations + 1,
+            current.totalOperations +
+            1,
 
           successfulOperations:
             current.successfulOperations +
@@ -1083,33 +830,734 @@ export function GameProvider({
           failedOperations:
             current.failedOperations +
             (success ? 0 : 1),
+        }));
+      },
+      []
+    );
 
-          completedToday:
-            current.completedToday + 1,
+  /*
+   * OPERATION START
+   */
+  const startOperation =
+    useCallback(
+      (
+        missionId: string,
+        duration: number
+      ) => {
+        const now =
+          Date.now();
 
-          operations:
-            current.operations.filter(
+        const safeDuration =
+          Math.max(
+            1,
+            Math.floor(duration)
+          );
+
+        const operationId =
+          `${missionId}-${now}-${Math.random()
+            .toString(36)
+            .slice(2, 7)}`;
+
+        let started = false;
+
+        setGame((current) => {
+          /*
+           * Aynı anda sadece 1 operasyon.
+           */
+          if (
+            current.operations
+              .length >= 1
+          ) {
+            return current;
+          }
+
+          /*
+           * Trace %100 ise yeni operasyon açılamaz.
+           * Önümüzdeki sistemlerde güvenli bekleme
+           * ve trace düşürme bunun etrafına kurulacak.
+           */
+          if (
+            current.trace >= 100
+          ) {
+            return current;
+          }
+
+          const operation: OperationState =
+            {
+              id: operationId,
+
+              missionId,
+
+              startedAt: now,
+
+              completesAt:
+                now +
+                safeDuration *
+                  1000,
+
+              phase: 0,
+
+              mistakes: 0,
+
+              warnings: 0,
+
+              traceGenerated: 0,
+
+              completed: false,
+
+              outcome:
+                'RUNNING',
+            };
+
+          started = true;
+
+          return {
+            ...current,
+
+            operations: [
+              ...current.operations,
+              operation,
+            ],
+
+            lastActiveAt:
+              now,
+          };
+        });
+
+        return started
+          ? operationId
+          : null;
+      },
+      []
+    );
+
+  /*
+   * OPERATION ADVANCE V2
+   *
+   * Bir yanlış karar trace üretir.
+   * İki yanlış karar kritik failure.
+   * Trace 100'e ulaştığında anında operasyon kesilir.
+   */
+  const advanceOperation =
+    useCallback(
+      (
+        operationId: string,
+        success: boolean,
+        tracePenalty: number
+      ) => {
+        let advanced = false;
+
+        setGame((current) => {
+          const operation =
+            current.operations.find(
               (item) =>
-                item.id !== operationId
-            ),
+                item.id ===
+                operationId
+            );
 
-          lastActiveAt:
-            Date.now(),
-        };
-      });
+          if (
+            !operation ||
+            operation.completed
+          ) {
+            return current;
+          }
 
-      return claimed;
-    },
-    [stats]
-  );
+          advanced = true;
 
+          const safeTracePenalty =
+            Math.max(
+              0,
+              Math.floor(
+                Number.isFinite(
+                  tracePenalty
+                )
+                  ? tracePenalty
+                  : 0
+              )
+            );
 
+          if (success) {
+            return {
+              ...current,
+
+              operations:
+                current.operations.map(
+                  (item) =>
+                    item.id ===
+                    operationId
+                      ? {
+                          ...item,
+
+                          phase:
+                            Math.min(
+                              3,
+                              item.phase +
+                                1
+                            ),
+                        }
+                      : item
+                ),
+            };
+          }
+
+          const nextMistakes =
+            operation.mistakes +
+            1;
+
+          const nextTrace =
+            clamp(
+              current.trace +
+                safeTracePenalty,
+              0,
+              100
+            );
+
+          const criticalFailure =
+            nextMistakes >=
+              2 ||
+            nextTrace >= 100;
+
+          return {
+            ...current,
+
+            trace:
+              nextTrace,
+
+            operations:
+              current.operations.map(
+                (item) =>
+                  item.id ===
+                  operationId
+                    ? {
+                        ...item,
+
+                        phase:
+                          Math.min(
+                            3,
+                            item.phase +
+                              1
+                          ),
+
+                        mistakes:
+                          nextMistakes,
+
+                        warnings:
+                          item.warnings +
+                          1,
+
+                        traceGenerated:
+                          item.traceGenerated +
+                          safeTracePenalty,
+
+                        completed:
+                          criticalFailure,
+
+                        outcome:
+                          criticalFailure
+                            ? 'CRITICAL_FAILURE'
+                            : 'RUNNING',
+                      }
+                    : item
+              ),
+          };
+        });
+
+        return advanced;
+      },
+      []
+    );
+
+  /*
+   * RESOLUTION V2
+   *
+   * Başarılar artık aynı değerde değil.
+   *
+   * 0 hata:
+   *   normal success
+   *   düşük ihtimal critical success
+   *
+   * 1 hata:
+   *   partial
+   *
+   * 2 hata:
+   *   critical failure
+   *
+   * Ayrıca son payout daha kontrollü.
+   */
+  const resolveOperation =
+    useCallback(
+      (
+        operationId: string,
+        reward: number,
+        xp: number,
+        reputation: number
+      ) => {
+        let resolved = false;
+
+        setGame((current) => {
+          const operation =
+            current.operations.find(
+              (item) =>
+                item.id ===
+                operationId
+            );
+
+          if (!operation) {
+            return current;
+          }
+
+          /*
+           * CRITICAL FAILURE
+           */
+          if (
+            operation.outcome ===
+              'CRITICAL_FAILURE' ||
+            (
+              operation.completed &&
+              operation.mistakes >= 2
+            )
+          ) {
+            resolved = true;
+
+            return {
+              ...current,
+
+              totalOperations:
+                current.totalOperations +
+                1,
+
+              failedOperations:
+                current.failedOperations +
+                1,
+
+              reputation:
+                Math.max(
+                  0,
+                  current.reputation -
+                    Math.max(
+                      1,
+                      Math.floor(
+                        Math.max(
+                          1,
+                          reputation
+                        ) / 2
+                      )
+                    )
+                ),
+
+              /*
+               * Failure biraz ek trace bırakıyor.
+               * Oyuncu arka arkaya kumar oynayamaz.
+               */
+              trace:
+                clamp(
+                  current.trace +
+                    2,
+                  0,
+                  100
+                ),
+
+              completedToday:
+                current.completedToday +
+                1,
+
+              operations:
+                current.operations.filter(
+                  (item) =>
+                    item.id !==
+                    operationId
+                ),
+
+              lastActiveAt:
+                Date.now(),
+            };
+          }
+
+          /*
+           * Henüz 3 faz bitmemişse resolve etme.
+           */
+          if (
+            operation.phase < 3 ||
+            operation.completed
+          ) {
+            return current;
+          }
+
+          resolved = true;
+
+          const perfectRun =
+            operation.mistakes ===
+            0;
+
+          const roughRun =
+            operation.mistakes ===
+            1;
+
+          /*
+           * Critical success artık yalnızca
+           * tamamen hatasız operasyonlarda mümkün.
+           *
+           * %7.
+           */
+          const criticalSuccess =
+            perfectRun &&
+            Math.random() < 0.07;
+
+          let rewardMultiplier = 0;
+
+          let xpMultiplier = 0;
+
+          let reputationMultiplier = 0;
+
+          if (
+            criticalSuccess
+          ) {
+            rewardMultiplier = 1.35;
+            xpMultiplier = 1.25;
+            reputationMultiplier =
+              1.5;
+          } else if (
+            perfectRun
+          ) {
+            rewardMultiplier = 1;
+            xpMultiplier = 1;
+            reputationMultiplier = 1;
+          } else if (
+            roughRun
+          ) {
+            rewardMultiplier = 0.30;
+            xpMultiplier = 0.50;
+            reputationMultiplier = 0.50;
+          } else {
+            rewardMultiplier = 0;
+            xpMultiplier = 0;
+            reputationMultiplier = 0;
+          }
+
+          /*
+           * Reward bonusları kontrollü tutuluyor.
+           */
+          const finalReward =
+            Math.max(
+              0,
+              Math.floor(
+                Math.max(
+                  0,
+                  reward
+                ) *
+                  rewardMultiplier *
+                  (
+                    1 +
+                    stats.rewardBonus /
+                      100
+                  )
+              )
+            );
+
+          const finalXp =
+            Math.max(
+              0,
+              Math.floor(
+                Math.max(
+                  0,
+                  xp
+                ) *
+                  xpMultiplier *
+                  (
+                    1 +
+                    stats.xpBonus /
+                      100
+                  )
+              )
+            );
+
+          const finalReputation =
+            Math.max(
+              0,
+              Math.floor(
+                Math.max(
+                  0,
+                  reputation
+                ) *
+                  reputationMultiplier
+              )
+            );
+
+          /*
+           * Başarılı operasyon da az miktarda trace
+           * üretiyor. Perfect run'da daha düşük.
+           */
+          const generatedTrace =
+            perfectRun
+              ? 1
+              : 4;
+
+          return {
+            ...current,
+
+            credits:
+              current.credits +
+              finalReward,
+
+            xp:
+              current.xp +
+              finalXp,
+
+            reputation:
+              current.reputation +
+              finalReputation,
+
+            trace:
+              clamp(
+                current.trace +
+                  Math.max(
+                    1,
+                    Math.floor(
+                      generatedTrace -
+                        stats.traceReduction /
+                          20
+                    )
+                  ),
+                0,
+                100
+              ),
+
+            totalOperations:
+              current.totalOperations +
+              1,
+
+            successfulOperations:
+              current.successfulOperations +
+              1,
+
+            completedToday:
+              current.completedToday +
+              1,
+
+            operations:
+              current.operations.filter(
+                (item) =>
+                  item.id !==
+                  operationId
+              ),
+
+            lastActiveAt:
+              Date.now(),
+          };
+        });
+
+        return resolved;
+      },
+      [stats]
+    );
+
+  /*
+   * LEGACY TIMER OPERATION
+   *
+   * Eski ekranlar bozulmasın diye tutuluyor.
+   * Yeni Interactive Operation V2 bunu kullanmayacak.
+   */
+  const claimOperation =
+    useCallback(
+      (
+        operationId: string,
+        reward: number,
+        xp: number,
+        reputation: number,
+        security: number,
+        risk: number
+      ) => {
+        let claimed = false;
+
+        setGame((current) => {
+          const operation =
+            current.operations.find(
+              (item) =>
+                item.id ===
+                operationId
+            );
+
+          if (!operation) {
+            return current;
+          }
+
+          if (
+            Date.now() <
+            operation.completesAt
+          ) {
+            return current;
+          }
+
+          claimed = true;
+
+          /*
+           * Eski sisteme göre daha zor.
+           */
+          const difficulty =
+            security * 0.62 +
+            risk * 0.38;
+
+          const levelBonus =
+            Math.max(
+              0,
+              current.level - 1
+            ) * 1.25;
+
+          const successChance =
+            clamp(
+              60 +
+                levelBonus +
+                stats.successBonus -
+                difficulty,
+              8,
+              88
+            );
+
+          const success =
+            Math.random() *
+              100 <
+            successChance;
+
+          const rewardMultiplier =
+            success
+              ? 0.65
+              : 0;
+
+          const xpMultiplier =
+            success
+              ? 0.70
+              : 0;
+
+          const generatedTrace =
+            Math.max(
+              1,
+              Math.floor(
+                (
+                  risk +
+                  (
+                    success
+                      ? 2
+                      : 8
+                  )
+                ) *
+                  (
+                    1 -
+                    stats.traceReduction /
+                      100
+                  )
+              )
+            );
+
+          const finalReward =
+            Math.floor(
+              reward *
+                rewardMultiplier *
+                (
+                  1 +
+                  stats.rewardBonus /
+                    100
+                )
+            );
+
+          const finalXp =
+            Math.floor(
+              xp *
+                xpMultiplier *
+                (
+                  1 +
+                  stats.xpBonus /
+                    100
+                )
+            );
+
+          const reputationDelta =
+            success
+              ? Math.max(
+                  1,
+                  Math.floor(
+                    reputation *
+                      0.75
+                  )
+                )
+              : 0;
+
+          return {
+            ...current,
+
+            credits:
+              current.credits +
+              finalReward,
+
+            xp:
+              current.xp +
+              finalXp,
+
+            reputation:
+              Math.max(
+                0,
+                current.reputation +
+                  reputationDelta
+              ),
+
+            trace:
+              clamp(
+                current.trace +
+                  generatedTrace,
+                0,
+                100
+              ),
+
+            totalOperations:
+              current.totalOperations +
+              1,
+
+            successfulOperations:
+              current.successfulOperations +
+              (success
+                ? 1
+                : 0),
+
+            failedOperations:
+              current.failedOperations +
+              (success
+                ? 0
+                : 1),
+
+            completedToday:
+              current.completedToday +
+              1,
+
+            operations:
+              current.operations.filter(
+                (item) =>
+                  item.id !==
+                  operationId
+              ),
+
+            lastActiveAt:
+              Date.now(),
+          };
+        });
+
+        return claimed;
+      },
+      [stats]
+    );
+
+  /*
+   * MARKET V2 FOUNDATION
+   */
   const buyItem = useCallback(
     (
       itemId: string,
       price: number
     ) => {
       let purchased = false;
+
+      const safePrice = Math.max(
+        0,
+        Math.floor(price)
+      );
 
       setGame((current) => {
         if (
@@ -1120,7 +1568,10 @@ export function GameProvider({
           return current;
         }
 
-        if (current.credits < price) {
+        if (
+          current.credits <
+          safePrice
+        ) {
           return current;
         }
 
@@ -1128,8 +1579,11 @@ export function GameProvider({
 
         return {
           ...current,
+
           credits:
-            current.credits - price,
+            current.credits -
+            safePrice,
+
           ownedItems: [
             ...current.ownedItems,
             itemId,
@@ -1142,45 +1596,56 @@ export function GameProvider({
     []
   );
 
-  const unlockSkill = useCallback(
-    (
-      skillId: string,
-      cost: number
-    ) => {
-      let unlocked = false;
+  const unlockSkill =
+    useCallback(
+      (
+        skillId: string,
+        cost: number
+      ) => {
+        let unlocked = false;
 
-      setGame((current) => {
-        if (
-          current.unlockedSkills.includes(
-            skillId
-          )
-        ) {
-          return current;
-        }
+        const safeCost =
+          Math.max(
+            1,
+            Math.floor(cost)
+          );
 
-        if (
-          current.skillPoints < cost
-        ) {
-          return current;
-        }
+        setGame((current) => {
+          if (
+            current.unlockedSkills.includes(
+              skillId
+            )
+          ) {
+            return current;
+          }
 
-        unlocked = true;
+          if (
+            current.skillPoints <
+            safeCost
+          ) {
+            return current;
+          }
 
-        return {
-          ...current,
-          skillPoints:
-            current.skillPoints - cost,
-          unlockedSkills: [
-            ...current.unlockedSkills,
-            skillId,
-          ],
-        };
-      });
+          unlocked = true;
 
-      return unlocked;
-    },
-    []
-  );
+          return {
+            ...current,
+
+            skillPoints:
+              current.skillPoints -
+              safeCost,
+
+            unlockedSkills: [
+              ...current.unlockedSkills,
+              skillId,
+            ],
+          };
+        });
+
+        return unlocked;
+      },
+      []
+    );
 
   const upgradeInfrastructure =
     useCallback(
@@ -1190,28 +1655,38 @@ export function GameProvider({
       ) => {
         let upgraded = false;
 
+        const safeCost =
+          Math.max(
+            1,
+            Math.floor(cost)
+          );
+
         setGame((current) => {
           if (
-            current.credits < cost
+            current.credits <
+            safeCost
           ) {
             return current;
           }
 
           const cpuCost =
-            infrastructureId === 'scrap'
+            infrastructureId ===
+            'scrap'
               ? 1
               : infrastructureId ===
-                'proxy'
+                  'proxy'
                 ? 5
                 : infrastructureId ===
-                  'rack'
+                    'rack'
                   ? 20
                   : infrastructureId ===
-                    'datacenter'
+                      'datacenter'
                     ? 100
                     : 0;
 
-          if (cpuCost <= 0) {
+          if (
+            cpuCost <= 0
+          ) {
             return current;
           }
 
@@ -1229,23 +1704,28 @@ export function GameProvider({
               .datacenter ?? 0) *
               100;
 
+          /*
+           * CPU cap artık daha sert.
+           */
           const cpuCapacity =
-            100 +
+            70 +
             Math.max(
               0,
               current.level - 1
             ) *
-              25;
+              20;
 
           if (
-            currentCpu + cpuCost >
+            currentCpu +
+              cpuCost >
             cpuCapacity
           ) {
             return current;
           }
 
           const currentLevel =
-            current.infrastructure[
+            current
+              .infrastructure[
               infrastructureId
             ] ?? 0;
 
@@ -1253,12 +1733,17 @@ export function GameProvider({
 
           return {
             ...current,
+
             credits:
-              current.credits - cost,
+              current.credits -
+              safeCost,
+
             infrastructure: {
               ...current.infrastructure,
+
               [infrastructureId]:
-                currentLevel + 1,
+                currentLevel +
+                1,
             },
           };
         });
@@ -1284,77 +1769,89 @@ export function GameProvider({
     [game.unlockedSkills]
   );
 
-  const value = useMemo(
-    () => ({
-      game,
-      stats,
+  const value =
+    useMemo(
+      () => ({
+        game,
+        stats,
 
-      xpRequired,
-      xpProgress,
+        xpRequired,
+        xpProgress,
 
-      rank,
-      rankNext,
-      rankProgress,
+        rank,
+        rankNext,
+        rankProgress,
 
-      rankUpVersion,
-      rankUpMessage,
-      clearRankUp,
+        rankUpVersion,
+        rankUpMessage,
+        clearRankUp,
 
-      addCredits,
-      collectPassiveIncome,
+        addCredits,
+        collectPassiveIncome,
 
-      addXp,
+        addXp,
 
-      addTrace,
-      reduceTrace,
+        addTrace,
+        reduceTrace,
 
-      addSkillPoints,
-      addReputation,
+        addSkillPoints,
+        addReputation,
 
-      recordOperation,
+        recordOperation,
 
-      startOperation,
-      advanceOperation,
-      resolveOperation,
-      claimOperation,
+        startOperation,
+        advanceOperation,
+        resolveOperation,
+        claimOperation,
 
-      buyItem,
-      unlockSkill,
-      upgradeInfrastructure,
+        buyItem,
+        unlockSkill,
+        upgradeInfrastructure,
 
-      hasItem,
-      hasSkill,
-    }),
-    [
-      game,
-      stats,
-      xpRequired,
-      xpProgress,
-      rank,
-      rankNext,
-      rankProgress,
-      rankUpVersion,
-      rankUpMessage,
-      clearRankUp,
-      addCredits,
-      collectPassiveIncome,
-      addXp,
-      addTrace,
-      reduceTrace,
-      addSkillPoints,
-      addReputation,
-      recordOperation,
-      startOperation,
-      advanceOperation,
-      resolveOperation,
-      claimOperation,
-      buyItem,
-      unlockSkill,
-      upgradeInfrastructure,
-      hasItem,
-      hasSkill,
-    ]
-  );
+        hasItem,
+        hasSkill,
+      }),
+      [
+        game,
+        stats,
+
+        xpRequired,
+        xpProgress,
+
+        rank,
+        rankNext,
+        rankProgress,
+
+        rankUpVersion,
+        rankUpMessage,
+        clearRankUp,
+
+        addCredits,
+        collectPassiveIncome,
+
+        addXp,
+
+        addTrace,
+        reduceTrace,
+
+        addSkillPoints,
+        addReputation,
+
+        recordOperation,
+
+        startOperation,
+        advanceOperation,
+        resolveOperation,
+        claimOperation,
+
+        buyItem,
+        unlockSkill,
+        upgradeInfrastructure,
+
+        hasItem,
+        hasSkill,
+      ]
+    );
 
   return (
     <GameContext.Provider
