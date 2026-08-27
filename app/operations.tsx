@@ -1,4 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+
 import {
   SafeAreaView,
   View,
@@ -7,6 +12,7 @@ import {
   Pressable,
   ScrollView,
 } from 'react-native';
+
 import { useRouter } from 'expo-router';
 import { useGame } from '../context/GameContext';
 
@@ -23,56 +29,358 @@ type Mission = {
   category: string;
 };
 
+type Choice = {
+  id: string;
+  label: string;
+  description: string;
+  correct: boolean;
+  trace: number;
+};
+
 const missions: Mission[] = [
   {
     id: 'ghost',
     title: 'GHOST PROTOCOL',
     client: 'UNKNOWN CLIENT',
-    description: 'Extract encrypted data from an isolated private node.',
-    reward: 1250,
-    xp: 90,
+    description:
+      'Extract encrypted data from an isolated private node.',
+    reward: 90,
+    xp: 120,
     security: 22,
     risk: 8,
-    duration: 8,
+    duration: 45,
     category: 'INFILTRATION',
   },
   {
     id: 'blackout',
     title: 'BLACKOUT',
     client: 'NIGHTFALL',
-    description: 'Disrupt a corporate relay and remain undetected.',
-    reward: 3400,
+    description:
+      'Disrupt a corporate relay and remain undetected.',
+    reward: 160,
     xp: 180,
     security: 41,
     risk: 19,
-    duration: 14,
+    duration: 60,
     category: 'DISRUPTION',
   },
   {
     id: 'vault',
     title: 'VAULT ZERO',
     client: 'UNKNOWN',
-    description: 'Break through a high-security digital vault.',
-    reward: 7800,
-    xp: 360,
+    description:
+      'Break through a high-security digital vault.',
+    reward: 280,
+    xp: 280,
     security: 67,
     risk: 34,
-    duration: 22,
+    duration: 90,
     category: 'EXTRACTION',
   },
   {
     id: 'phantom',
     title: 'PHANTOM ROUTE',
     client: 'GHOST MARKET',
-    description: 'Hijack a hidden relay and establish a permanent route.',
-    reward: 15600,
-    xp: 620,
+    description:
+      'Hijack a hidden relay and establish a permanent route.',
+    reward: 450,
+    xp: 420,
     security: 81,
     risk: 48,
-    duration: 35,
+    duration: 120,
     category: 'NETWORK',
   },
 ];
+
+const choices: Record<string, Choice[][]> = {
+  ghost: [
+    [
+      {
+        id: 'scan',
+        label: 'PASSIVE SCAN',
+        description: 'Map the node without touching the target.',
+        correct: true,
+        trace: 0,
+      },
+      {
+        id: 'probe',
+        label: 'ACTIVE PROBE',
+        description: 'Force a response from the remote host.',
+        correct: false,
+        trace: 8,
+      },
+      {
+        id: 'direct',
+        label: 'DIRECT ACCESS',
+        description: 'Attempt immediate entry.',
+        correct: false,
+        trace: 14,
+      },
+    ],
+    [
+      {
+        id: 'proxy',
+        label: 'PROXY CHAIN',
+        description: 'Route the connection through multiple relays.',
+        correct: true,
+        trace: 1,
+      },
+      {
+        id: 'direct',
+        label: 'DIRECT ROUTE',
+        description: 'Connect directly to the target.',
+        correct: false,
+        trace: 9,
+      },
+      {
+        id: 'spoof',
+        label: 'IDENTITY SPOOF',
+        description: 'Forge a temporary identity signature.',
+        correct: false,
+        trace: 6,
+      },
+    ],
+    [
+      {
+        id: 'extract',
+        label: 'QUIET EXTRACTION',
+        description: 'Copy only the requested payload.',
+        correct: true,
+        trace: 1,
+      },
+      {
+        id: 'dump',
+        label: 'FULL DATA DUMP',
+        description: 'Take everything from the node.',
+        correct: false,
+        trace: 12,
+      },
+      {
+        id: 'destroy',
+        label: 'PURGE NODE',
+        description: 'Destroy the evidence after extraction.',
+        correct: false,
+        trace: 10,
+      },
+    ],
+  ],
+
+  blackout: [
+    [
+      {
+        id: 'observe',
+        label: 'OBSERVE TRAFFIC',
+        description: 'Study relay patterns first.',
+        correct: true,
+        trace: 0,
+      },
+      {
+        id: 'flood',
+        label: 'FLOOD RELAY',
+        description: 'Overload the relay immediately.',
+        correct: false,
+        trace: 12,
+      },
+      {
+        id: 'scan',
+        label: 'DEEP SCAN',
+        description: 'Aggressively scan every service.',
+        correct: false,
+        trace: 8,
+      },
+    ],
+    [
+      {
+        id: 'mirror',
+        label: 'MIRROR ROUTE',
+        description: 'Clone the relay path and attack the mirror.',
+        correct: true,
+        trace: 1,
+      },
+      {
+        id: 'brute',
+        label: 'BRUTE FORCE',
+        description: 'Hammer the authentication layer.',
+        correct: false,
+        trace: 13,
+      },
+      {
+        id: 'inject',
+        label: 'DIRECT INJECTION',
+        description: 'Inject a command into the primary relay.',
+        correct: false,
+        trace: 10,
+      },
+    ],
+    [
+      {
+        id: 'shutdown',
+        label: 'CONTROLLED SHUTDOWN',
+        description: 'Disable the relay subsystem cleanly.',
+        correct: true,
+        trace: 1,
+      },
+      {
+        id: 'crash',
+        label: 'FORCED CRASH',
+        description: 'Destroy the relay immediately.',
+        correct: false,
+        trace: 15,
+      },
+      {
+        id: 'linger',
+        label: 'MAINTAIN ACCESS',
+        description: 'Keep the connection open longer.',
+        correct: false,
+        trace: 8,
+      },
+    ],
+  ],
+
+  vault: [
+    [
+      {
+        id: 'intel',
+        label: 'READ METADATA',
+        description: 'Analyze the vault structure first.',
+        correct: true,
+        trace: 0,
+      },
+      {
+        id: 'attack',
+        label: 'ATTACK SURFACE',
+        description: 'Start probing protected endpoints.',
+        correct: false,
+        trace: 12,
+      },
+      {
+        id: 'credentials',
+        label: 'GUESS CREDENTIALS',
+        description: 'Try common administrator credentials.',
+        correct: false,
+        trace: 10,
+      },
+    ],
+    [
+      {
+        id: 'key',
+        label: 'KEY RECONSTRUCTION',
+        description: 'Rebuild the fragmented access key.',
+        correct: true,
+        trace: 2,
+      },
+      {
+        id: 'brute',
+        label: 'BRUTE FORCE',
+        description: 'Search the entire key space.',
+        correct: false,
+        trace: 18,
+      },
+      {
+        id: 'bypass',
+        label: 'SECURITY BYPASS',
+        description: 'Attempt to bypass the encryption layer.',
+        correct: false,
+        trace: 14,
+      },
+    ],
+    [
+      {
+        id: 'extract',
+        label: 'TARGETED EXTRACTION',
+        description: 'Extract only the contracted data.',
+        correct: true,
+        trace: 1,
+      },
+      {
+        id: 'all',
+        label: 'TOTAL EXTRACTION',
+        description: 'Copy the complete vault.',
+        correct: false,
+        trace: 14,
+      },
+      {
+        id: 'wipe',
+        label: 'WIPE EVERYTHING',
+        description: 'Destroy the vault after entry.',
+        correct: false,
+        trace: 16,
+      },
+    ],
+  ],
+
+  phantom: [
+    [
+      {
+        id: 'ghost',
+        label: 'GHOST ROUTE',
+        description: 'Build a hidden route before touching the relay.',
+        correct: true,
+        trace: 0,
+      },
+      {
+        id: 'direct',
+        label: 'DIRECT TAKEOVER',
+        description: 'Attempt immediate control of the relay.',
+        correct: false,
+        trace: 18,
+      },
+      {
+        id: 'scan',
+        label: 'FULL NETWORK SCAN',
+        description: 'Scan all connected nodes.',
+        correct: false,
+        trace: 14,
+      },
+    ],
+    [
+      {
+        id: 'mirror',
+        label: 'MIRROR RELAY',
+        description: 'Clone the relay through a disposable mirror.',
+        correct: true,
+        trace: 2,
+      },
+      {
+        id: 'force',
+        label: 'FORCE ACCESS',
+        description: 'Break through the primary gateway.',
+        correct: false,
+        trace: 20,
+      },
+      {
+        id: 'spoof',
+        label: 'FULL ID SPOOF',
+        description: 'Replace the entire identity chain.',
+        correct: false,
+        trace: 12,
+      },
+    ],
+    [
+      {
+        id: 'lock',
+        label: 'LOCK ROUTE',
+        description: 'Seal the route and leave minimal evidence.',
+        correct: true,
+        trace: 2,
+      },
+      {
+        id: 'expand',
+        label: 'EXPAND CONTROL',
+        description: 'Take control of additional relays.',
+        correct: false,
+        trace: 18,
+      },
+      {
+        id: 'destroy',
+        label: 'DESTROY RELAY',
+        description: 'Destroy the target after takeover.',
+        correct: false,
+        trace: 20,
+      },
+    ],
+  ],
+};
 
 export default function OperationsScreen() {
   const router = useRouter();
@@ -81,118 +389,242 @@ export default function OperationsScreen() {
     game,
     stats,
     startOperation,
-    claimOperation,
+    advanceOperation,
+    resolveOperation,
     xpRequired,
     xpProgress,
+    rank,
   } = useGame();
 
-  const activeOperations = game.operations;
+  const [selectedMissionId, setSelectedMissionId] =
+    useState<string | null>(null);
 
-  const [tick, setTick] = useState(Date.now());
+  const [selectedOperationId, setSelectedOperationId] =
+    useState<string | null>(null);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTick(Date.now());
-    }, 1000);
+  const [phase, setPhase] = useState(0);
+  const [mistakes, setMistakes] = useState(0);
+  const [operationTrace, setOperationTrace] =
+    useState(0);
 
-    return () => clearInterval(timer);
-  }, []);
+  const [message, setMessage] = useState(
+    'SELECT A CONTRACT TO BEGIN'
+  );
 
-  const level = game.level;
-  const xp = game.xp;
-  const credits = game.credits;
-  const completedToday = game.completedToday;
+  const [outcome, setOutcome] = useState<
+    | 'SUCCESS'
+    | 'PARTIAL'
+    | 'FAILURE'
+    | 'CRITICAL_FAILURE'
+    | null
+  >(null);
 
-  const xpForNextLevel = xpRequired;
-
-  const active = activeOperations.length > 0
-    ? missions.find(
+  const activeMission = useMemo(
+    () =>
+      missions.find(
         (mission) =>
-          mission.id === activeOperations[0].missionId
-      )
-    : undefined;
+          mission.id === selectedMissionId
+      ),
+    [selectedMissionId]
+  );
 
-  const activeMission = activeOperations[0]?.missionId ?? null;
+  const activeOperation =
+    game.operations.find(
+      (operation) =>
+        operation.id === selectedOperationId
+    );
 
-  const remaining = activeOperations.length > 0
-    ? Math.max(
-        0,
-        Math.ceil(
-          (activeOperations[0].completesAt - tick) / 1000
-        )
-      )
-    : 0;
+  const phaseChoices =
+    activeMission
+      ? choices[activeMission.id]?.[phase] ??
+        []
+      : [];
 
-  useEffect(() => {
-    for (const operation of activeOperations) {
-      if (operation.completesAt > Date.now()) continue;
-
-      const mission = missions.find(
-        (item) => item.id === operation.missionId
-      );
-
-      if (!mission) continue;
-
-      claimOperation(
-        operation.id,
-        mission.reward,
-        mission.xp,
-        5,
-        mission.security,
-        mission.risk
-      );
-    }
-  }, [tick, activeOperations, claimOperation]);
-
-  const startMission = (mission: Mission) => {
-    if (activeOperations.length >= 3) return;
-
-    startOperation(
-      mission.id,
-      mission.duration
+  const resetOperation = () => {
+    setSelectedMissionId(null);
+    setSelectedOperationId(null);
+    setPhase(0);
+    setMistakes(0);
+    setOperationTrace(0);
+    setOutcome(null);
+    setMessage(
+      'SELECT A CONTRACT TO BEGIN'
     );
   };
 
-  const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+  const beginOperation = (
+    mission: Mission
+  ) => {
+    if (
+      game.operations.length > 0
+    ) {
+      setMessage(
+        'ACTIVE OPERATION // FINISH CURRENT JOB FIRST'
+      );
+      return;
+    }
 
-    return `${String(minutes).padStart(2, '0')}:${String(
-      secs
-    ).padStart(2, '0')}`;
+    const started = startOperation(
+      mission.id,
+      mission.duration
+    );
+
+    if (!started) {
+      setMessage(
+        'OPERATION COULD NOT START'
+      );
+      return;
+    }
+
+    const createdId =
+      `${mission.id}-${Date.now()}`;
+
+    setSelectedMissionId(mission.id);
+    setSelectedOperationId(createdId);
+    setPhase(0);
+    setMistakes(0);
+    setOperationTrace(0);
+    setOutcome(null);
+    setMessage(
+      'CONNECTION ESTABLISHED // AWAITING INPUT'
+    );
   };
 
+  const chooseAction = (
+    choice: Choice
+  ) => {
+    if (
+      !activeMission ||
+      !activeOperation ||
+      outcome
+    ) {
+      return;
+    }
+
+    const nextMistakes =
+      mistakes + (choice.correct ? 0 : 1);
+
+    const nextTrace =
+      operationTrace + choice.trace;
+
+    setMistakes(nextMistakes);
+    setOperationTrace(nextTrace);
+
+    advanceOperation(
+      activeOperation.id,
+      choice.correct,
+      choice.trace
+    );
+
+    if (!choice.correct) {
+      if (nextMistakes >= 2) {
+        setOutcome(
+          'CRITICAL_FAILURE'
+        );
+
+        setMessage(
+          'SECURITY SYSTEM // TRACE LOCK'
+        );
+
+        setSelectedOperationId(null);
+
+        return;
+      }
+
+      setMessage(
+        `WARNING // TRACE +${choice.trace}%`
+      );
+    } else {
+      setMessage(
+        phase >= 2
+          ? 'FINAL ROUTE ACCEPTED // RESOLVING'
+          : 'ACCESS VECTOR ACCEPTED // CONTINUE'
+      );
+    }
+
+    if (phase >= 2) {
+      if (nextMistakes === 0) {
+        setOutcome('SUCCESS');
+      } else {
+        setOutcome('PARTIAL');
+      }
+    } else {
+      setPhase((current) =>
+        Math.min(2, current + 1)
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (
+      !outcome ||
+      !activeMission ||
+      !selectedOperationId
+    ) {
+      return;
+    }
+
+    const result =
+      resolveOperation(
+        selectedOperationId,
+        activeMission.reward,
+        activeMission.xp,
+        5
+      );
+
+    if (!result) {
+      return;
+    }
+  }, [
+    outcome,
+    activeMission,
+    selectedOperationId,
+    resolveOperation,
+  ]);
+
+  const progressPercent =
+    ((phase + 1) / 3) * 100;
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
+        contentContainerStyle={
+          styles.content
+        }
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
       >
         <View style={styles.header}>
           <Pressable
             onPress={() => router.back()}
             style={styles.backButton}
           >
-            <Text style={styles.backArrow}>‹</Text>
+            <Text style={styles.backArrow}>
+              ‹
+            </Text>
           </Pressable>
 
           <View style={styles.headerCenter}>
-            <Text style={styles.title}>OPERATIONS</Text>
+            <Text style={styles.title}>
+              OPERATIONS
+            </Text>
+
             <Text style={styles.subtitle}>
-              CONTRACT NETWORK
+              INTERACTIVE CONTRACT NETWORK
             </Text>
           </View>
 
-          <View style={styles.liveBadge}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveText}>LIVE</Text>
+          <View style={styles.rankBadge}>
+            <Text style={styles.rankText}>
+              {rank}
+            </Text>
           </View>
         </View>
 
         <View style={styles.profileCard}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>◆</Text>
+            <Text style={styles.avatarText}>
+              ◆
+            </Text>
           </View>
 
           <View style={styles.profileMain}>
@@ -201,326 +633,519 @@ export default function OperationsScreen() {
             </Text>
 
             <Text style={styles.profileRole}>
-              DIGITAL INTRUDER // LEVEL {level}
+              DIGITAL INTRUDER // LEVEL {game.level}
             </Text>
 
             <View style={styles.xpBar}>
               <View
                 style={[
                   styles.xpFill,
-                  { width: `${xpProgress}%` },
+                  {
+                    width: `${xpProgress}%`,
+                  },
                 ]}
               />
             </View>
 
             <Text style={styles.xpText}>
-              {xp} / {xpForNextLevel} XP
+              {game.xp} / {xpRequired} XP
             </Text>
           </View>
 
           <View style={styles.creditBox}>
-            <Text style={styles.creditLabel}>CREDITS</Text>
+            <Text style={styles.creditLabel}>
+              CREDITS
+            </Text>
+
             <Text style={styles.creditValue}>
-              ${credits.toLocaleString()}
+              ${game.credits.toLocaleString()}
             </Text>
           </View>
         </View>
 
-        {activeOperations.length > 0 && (
-          <View>
-            {activeOperations.map((operation, index) => {
-              const mission = missions.find(
-                (item) => item.id === operation.missionId
-              );
+        {activeMission &&
+          activeOperation && (
+            <View style={styles.operationPanel}>
+              <View style={styles.operationTop}>
+                <View>
+                  <Text style={styles.phaseLabel}>
+                    PHASE {phase + 1} / 3
+                  </Text>
 
-              if (!mission) return null;
+                  <Text style={styles.operationTitle}>
+                    {activeMission.title}
+                  </Text>
+                </View>
 
-              const operationRemaining = Math.max(
-                0,
-                Math.ceil(
-                  (operation.completesAt - tick) / 1000
-                )
-              );
+                <View style={styles.traceBox}>
+                  <Text style={styles.traceLabel}>
+                    TRACE
+                  </Text>
 
-              const progress = Math.min(
-                100,
-                Math.max(
-                  0,
-                  100 -
-                    (operationRemaining / mission.duration) * 100
-                )
-              );
+                  <Text
+                    style={[
+                      styles.traceValue,
+                      operationTrace >= 25 &&
+                        styles.traceDanger,
+                    ]}
+                  >
+                    {game.trace + operationTrace}%
+                  </Text>
+                </View>
+              </View>
 
-              return (
+              <View
+                style={styles.phaseBarBackground}
+              >
                 <View
-                  key={operation.id}
-                  style={styles.activeCard}
-                >
-                  <View style={styles.activeHeader}>
-                    <View>
-                      <Text style={styles.activeLabel}>
-                        OPERATION {index + 1} / 3
-                      </Text>
+                  style={[
+                    styles.phaseBarFill,
+                    {
+                      width: `${progressPercent}%`,
+                    },
+                  ]}
+                />
+              </View>
 
-                      <Text style={styles.activeTitle}>
-                        {mission.title}
+              <View style={styles.terminal}>
+                <View style={styles.terminalHeader}>
+                  <View
+                    style={styles.terminalDots}
+                  >
+                    <View style={styles.dot} />
+                    <View style={styles.dot} />
+                    <View style={styles.dot} />
+                  </View>
+
+                  <Text style={styles.terminalTitle}>
+                    shadow@{activeMission.id}:~
+                  </Text>
+                </View>
+
+                <Text style={styles.terminalLine}>
+                  <Text style={styles.prompt}>
+                    &gt;{' '}
+                  </Text>
+                  target handshake established
+                </Text>
+
+                <Text style={styles.terminalLine}>
+                  <Text style={styles.prompt}>
+                    &gt;{' '}
+                  </Text>
+                  security layer{' '}
+                  {activeMission.security}%
+                </Text>
+
+                <Text style={styles.terminalLine}>
+                  <Text style={styles.success}>
+                    &gt;{' '}
+                  </Text>
+                  awaiting operator decision...
+                </Text>
+              </View>
+
+              <Text style={styles.instruction}>
+                SELECT THE SAFEST VECTOR
+              </Text>
+
+              {phaseChoices.map(
+                (choice) => (
+                  <Pressable
+                    key={choice.id}
+                    onPress={() =>
+                      chooseAction(
+                        choice
+                      )
+                    }
+                    style={({ pressed }) => [
+                      styles.choiceButton,
+                      pressed &&
+                        styles.choicePressed,
+                    ]}
+                  >
+                    <View
+                      style={styles.choiceIcon}
+                    >
+                      <Text
+                        style={
+                          styles.choiceIconText
+                        }
+                      >
+                        {choice.correct
+                          ? '›'
+                          : '?'}
                       </Text>
                     </View>
 
-                    <Text style={styles.timer}>
-                      {formatTime(operationRemaining)}
-                    </Text>
-                  </View>
-
-                  <View style={styles.activeProgressBackground}>
                     <View
-                      style={[
-                        styles.activeProgress,
-                        {
-                          width: `${progress}%`,
-                        },
-                      ]}
-                    />
-                  </View>
-
-                  <View style={styles.activeFooter}>
-                    <Text style={styles.activeStatus}>
-                      ● EXECUTION IN PROGRESS
-                    </Text>
-
-                    <Text style={styles.activeReward}>
-                      +${mission.reward.toLocaleString()}
-                    </Text>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
-
-        <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>
-              AVAILABLE CONTRACTS
-            </Text>
-            <Text style={styles.sectionSubtitle}>
-              COMPLETE OPERATIONS TO EARN CREDITS AND XP
-            </Text>
-          </View>
-
-          <View style={styles.counter}>
-            <Text style={styles.counterText}>
-              {completedToday} DONE
-            </Text>
-          </View>
-        </View>
-
-        {missions.map((mission) => {
-          const locked =
-            mission.security > level * 18 + 25;
-
-          const running =
-            activeMission === mission.id;
-
-          return (
-            <View
-              key={mission.id}
-              style={[
-                styles.missionCard,
-                running && styles.runningCard,
-                locked && styles.lockedCard,
-              ]}
-            >
-              <View style={styles.missionTop}>
-                <View style={styles.missionIcon}>
-                  <Text
-                    style={[
-                      styles.missionIconText,
-                      locked && styles.lockedText,
-                    ]}
-                  >
-                    {locked ? '?' : '⌁'}
-                  </Text>
-                </View>
-
-                <View style={styles.missionIdentity}>
-                  <View style={styles.titleRow}>
-                    <Text
-                      style={[
-                        styles.missionTitle,
-                        locked && styles.lockedText,
-                      ]}
+                      style={styles.choiceBody}
                     >
-                      {mission.title}
-                    </Text>
+                      <Text
+                        style={styles.choiceTitle}
+                      >
+                        {choice.label}
+                      </Text>
+
+                      <Text
+                        style={styles.choiceDescription}
+                      >
+                        {choice.description}
+                      </Text>
+                    </View>
 
                     <Text
-                      style={[
-                        styles.category,
-                        locked && styles.lockedText,
-                      ]}
+                      style={styles.choiceArrow}
                     >
-                      {mission.category}
+                      ›
                     </Text>
-                  </View>
+                  </Pressable>
+                )
+              )}
 
-                  <Text style={styles.client}>
-                    {mission.client}
-                  </Text>
-                </View>
+              <View
+                style={styles.messageBox}
+              >
+                <Text
+                  style={styles.messageText}
+                >
+                  {message}
+                </Text>
               </View>
 
-              <Text style={styles.description}>
-                {mission.description}
-              </Text>
-
-              <View style={styles.missionStats}>
-                <View>
-                  <Text style={styles.statLabel}>
-                    REWARD
-                  </Text>
-                  <Text style={styles.reward}>
-                    ${mission.reward.toLocaleString()}
-                  </Text>
-                </View>
-
-                <View>
-                  <Text style={styles.statLabel}>
-                    XP
-                  </Text>
-                  <Text style={styles.statValue}>
-                    +{mission.xp}
-                  </Text>
-                </View>
-
-                <View>
-                  <Text style={styles.statLabel}>
-                    SECURITY
-                  </Text>
-                  <Text style={styles.statValue}>
-                    {mission.security}%
-                  </Text>
-                </View>
-
-                <View>
-                  <Text style={styles.statLabel}>
-                    TRACE
-                  </Text>
-                  <Text
-                    style={[
-                      styles.statValue,
-                      mission.risk >= 30 &&
-                        styles.highRisk,
-                    ]}
-                  >
-                    {mission.risk}%
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.missionBottom}>
-                <View>
-                  <Text style={styles.durationLabel}>
-                    EST. TIME
-                  </Text>
-                  <Text style={styles.duration}>
-                    {mission.duration}s
-                  </Text>
-                </View>
-
-                <Pressable
-                  disabled={
-                    locked ||
-                    activeOperations.length >= 3 ||
-                    activeMission === mission.id
-                  }
-                  onPress={() => startMission(mission)}
-                  style={({ pressed }) => [
-                    styles.startButton,
-                    locked && styles.lockedButton,
-                    activeOperations.length > 0 &&
-                      !running &&
-                      styles.busyButton,
-                    pressed &&
-                      !locked &&
-                      !activeMission &&
-                      styles.buttonPressed,
+              {outcome && (
+                <View
+                  style={[
+                    styles.outcomeCard,
+                    outcome === 'SUCCESS' &&
+                      styles.outcomeSuccess,
+                    outcome ===
+                      'PARTIAL' &&
+                      styles.outcomePartial,
+                    outcome ===
+                      'CRITICAL_FAILURE' &&
+                      styles.outcomeFailure,
                   ]}
                 >
                   <Text
-                    style={[
-                      styles.startText,
-                      locked &&
-                        styles.lockedButtonText,
-                    ]}
+                    style={styles.outcomeTitle}
                   >
-                    {running
-                      ? 'RUNNING'
-                      : locked
-                        ? 'LOCKED'
-                        : activeOperations.some(
-                            (operation) =>
-                              operation.missionId === mission.id
-                          )
-                          ? 'BUSY'
-                          : 'EXECUTE'}
+                    {outcome}
                   </Text>
 
-                  {!locked &&
-                    !running &&
-                    activeOperations.length < 3 && (
-                    <Text style={styles.startArrow}>
-                      ›
+                  <Text
+                    style={styles.outcomeText}
+                  >
+                    {outcome ===
+                    'SUCCESS'
+                      ? `+$${activeMission.reward.toLocaleString()} // +${activeMission.xp} XP`
+                      : outcome ===
+                        'PARTIAL'
+                        ? `PARTIAL PAYOUT // +$${Math.floor(
+                            activeMission.reward *
+                              0.45
+                          ).toLocaleString()}`
+                        : `TRACE LOCK // NO PAYOUT`}
+                  </Text>
+
+                  <Pressable
+                    onPress={resetOperation}
+                    style={
+                      styles.continueButton
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.continueText
+                      }
+                    >
+                      RETURN TO CONTRACTS
                     </Text>
-                  )}
-                </Pressable>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+          )}
+
+        {!activeMission && (
+          <>
+            <View
+              style={styles.sectionHeader}
+            >
+              <View>
+                <Text
+                  style={styles.sectionTitle}
+                >
+                  AVAILABLE CONTRACTS
+                </Text>
+
+                <Text
+                  style={styles.sectionSubtitle}
+                >
+                  EVERY DECISION CHANGES THE OUTCOME
+                </Text>
+              </View>
+
+              <View
+                style={styles.counter}
+              >
+                <Text
+                  style={styles.counterText}
+                >
+                  {game.completedToday} DONE
+                </Text>
               </View>
             </View>
-          );
-        })}
 
-        <View style={styles.chainCard}>
-          <View style={styles.chainIcon}>
-            <Text style={styles.chainIconText}>◆</Text>
-          </View>
+            {missions.map(
+              (mission) => {
+                const locked =
+                  mission.security >
+                  game.level * 18 +
+                    25;
 
-          <View style={styles.chainBody}>
-            <Text style={styles.chainTitle}>
-              OPERATION CHAIN
-            </Text>
+                return (
+                  <View
+                    key={mission.id}
+                    style={[
+                      styles.missionCard,
+                      locked &&
+                        styles.lockedCard,
+                    ]}
+                  >
+                    <View
+                      style={styles.missionTop}
+                    >
+                      <View
+                        style={
+                          styles.missionIcon
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.missionIconText
+                          }
+                        >
+                          {locked
+                            ? '?'
+                            : '⌁'}
+                        </Text>
+                      </View>
 
-            <Text style={styles.chainText}>
-              Complete 5 operations without triggering a trace
-              to unlock a bonus contract.
-            </Text>
+                      <View
+                        style={
+                          styles.missionIdentity
+                        }
+                      >
+                        <View
+                          style={
+                            styles.titleRow
+                          }
+                        >
+                          <Text
+                            style={[
+                              styles.missionTitle,
+                              locked &&
+                                styles.lockedText,
+                            ]}
+                          >
+                            {mission.title}
+                          </Text>
 
-            <View style={styles.chainBar}>
-              <View style={styles.chainFill} />
-            </View>
+                          <Text
+                            style={[
+                              styles.category,
+                              locked &&
+                                styles.lockedText,
+                            ]}
+                          >
+                            {mission.category}
+                          </Text>
+                        </View>
 
-            <Text style={styles.chainProgress}>
-              3 / 5 OPERATIONS
-            </Text>
-          </View>
-        </View>
+                        <Text
+                          style={
+                            styles.client
+                          }
+                        >
+                          {mission.client}
+                        </Text>
+                      </View>
+                    </View>
 
-        <View style={styles.warning}>
-          <Text style={styles.warningIcon}>!</Text>
+                    <Text
+                      style={
+                        styles.description
+                      }
+                    >
+                      {mission.description}
+                    </Text>
 
-          <View style={styles.warningBody}>
-            <Text style={styles.warningTitle}>
-              TRACE WARNING
-            </Text>
+                    <View
+                      style={
+                        styles.missionStats
+                      }
+                    >
+                      <View>
+                        <Text
+                          style={
+                            styles.statLabel
+                          }
+                        >
+                          REWARD
+                        </Text>
 
-            <Text style={styles.warningText}>
-              High-security contracts generate more trace.
-              Upgrade Stealth to access dangerous contracts safely.
-            </Text>
-          </View>
+                        <Text
+                          style={
+                            styles.reward
+                          }
+                        >
+                          $
+                          {mission.reward.toLocaleString()}
+                        </Text>
+                      </View>
+
+                      <View>
+                        <Text
+                          style={
+                            styles.statLabel
+                          }
+                        >
+                          XP
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.statValue
+                          }
+                        >
+                          +{mission.xp}
+                        </Text>
+                      </View>
+
+                      <View>
+                        <Text
+                          style={
+                            styles.statLabel
+                          }
+                        >
+                          SECURITY
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.statValue
+                          }
+                        >
+                          {mission.security}%
+                        </Text>
+                      </View>
+
+                      <View>
+                        <Text
+                          style={
+                            styles.statLabel
+                          }
+                        >
+                          RISK
+                        </Text>
+
+                        <Text
+                          style={[
+                            styles.statValue,
+                            mission.risk >=
+                              30 &&
+                              styles.highRisk,
+                          ]}
+                        >
+                          {mission.risk}%
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View
+                      style={
+                        styles.missionBottom
+                      }
+                    >
+                      <View>
+                        <Text
+                          style={
+                            styles.durationLabel
+                          }
+                        >
+                          OPERATION
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.duration
+                          }
+                        >
+                          3 PHASES
+                        </Text>
+                      </View>
+
+                      <Pressable
+                        disabled={locked}
+                        onPress={() =>
+                          beginOperation(
+                            mission
+                          )
+                        }
+                        style={({ pressed }) => [
+                          styles.startButton,
+                          locked &&
+                            styles.lockedButton,
+                          pressed &&
+                            !locked &&
+                            styles.buttonPressed,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.startText,
+                            locked &&
+                              styles.lockedButtonText,
+                          ]}
+                        >
+                          {locked
+                            ? 'LOCKED'
+                            : 'START'}
+                        </Text>
+
+                        {!locked && (
+                          <Text
+                            style={
+                              styles.startArrow
+                            }
+                          >
+                            ›
+                          </Text>
+                        )}
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              }
+            )}
+          </>
+        )}
+
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>
+            OPERATOR RULES
+          </Text>
+
+          <Text style={styles.infoText}>
+            Correct decisions advance the operation.
+            Wrong decisions increase trace and mistakes.
+            Two mistakes can trigger a critical failure.
+          </Text>
         </View>
 
         <Text style={styles.footer}>
-          SHADOWNET // CONTRACT NETWORK v1.0
+          SHADOWNET // INTERACTIVE CONTRACT NETWORK v2.0
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -536,7 +1161,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 18,
     paddingTop: 10,
-    paddingBottom: 40,
+    paddingBottom: 45,
   },
 
   header: {
@@ -544,7 +1169,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 15,
+    marginBottom: 12,
   },
 
   backButton: {
@@ -577,34 +1202,24 @@ const styles = StyleSheet.create({
 
   subtitle: {
     color: '#59616F',
-    fontSize: 7,
+    fontSize: 6.5,
     fontWeight: '800',
-    letterSpacing: 1.2,
+    letterSpacing: 1.1,
     marginTop: 3,
   },
 
-  liveBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#123B2E',
+  rankBadge: {
     backgroundColor: '#08150F',
+    borderWidth: 1,
+    borderColor: '#14513E',
     borderRadius: 6,
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     paddingVertical: 6,
   },
 
-  liveDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: '#00F5A0',
-    marginRight: 5,
-  },
-
-  liveText: {
+  rankText: {
     color: '#00F5A0',
-    fontSize: 7,
+    fontSize: 6.5,
     fontWeight: '900',
   },
 
@@ -652,7 +1267,6 @@ const styles = StyleSheet.create({
     fontSize: 6.5,
     fontWeight: '800',
     marginTop: 3,
-    letterSpacing: 0.5,
   },
 
   xpBar: {
@@ -692,70 +1306,247 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
-  activeCard: {
-    backgroundColor: '#071811',
+  operationPanel: {
+    backgroundColor: '#07110F',
     borderWidth: 1,
     borderColor: '#14513E',
-    borderRadius: 10,
+    borderRadius: 11,
     padding: 13,
-    marginBottom: 22,
+    marginBottom: 13,
   },
 
-  activeHeader: {
+  operationTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
 
-  activeLabel: {
+  phaseLabel: {
     color: '#00F5A0',
-    fontSize: 7,
+    fontSize: 6.5,
     fontWeight: '900',
     letterSpacing: 1,
   },
 
-  activeTitle: {
+  operationTitle: {
     color: '#DCE2E8',
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '900',
     marginTop: 4,
   },
 
-  timer: {
+  traceBox: {
+    alignItems: 'flex-end',
+  },
+
+  traceLabel: {
+    color: '#59616F',
+    fontSize: 5.5,
+    fontWeight: '800',
+  },
+
+  traceValue: {
     color: '#00F5A0',
-    fontSize: 17,
+    fontSize: 12,
     fontWeight: '900',
-    fontFamily: 'monospace',
+    marginTop: 3,
   },
 
-  activeProgressBackground: {
-    height: 5,
-    backgroundColor: '#13261F',
-    borderRadius: 3,
+  traceDanger: {
+    color: '#FF426D',
+  },
+
+  phaseBarBackground: {
+    height: 4,
+    backgroundColor: '#16231F',
+    borderRadius: 2,
     overflow: 'hidden',
-    marginTop: 13,
+    marginTop: 11,
   },
 
-  activeProgress: {
+  phaseBarFill: {
     height: '100%',
     backgroundColor: '#00F5A0',
   },
 
-  activeFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
+  terminal: {
+    backgroundColor: '#04070B',
+    borderWidth: 1,
+    borderColor: '#151C27',
+    borderRadius: 8,
+    padding: 11,
+    marginTop: 11,
   },
 
-  activeStatus: {
-    color: '#52796A',
+  terminalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 8,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#111823',
+  },
+
+  terminalDots: {
+    flexDirection: 'row',
+    marginRight: 8,
+  },
+
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#28323F',
+    marginRight: 4,
+  },
+
+  terminalTitle: {
+    color: '#59616F',
     fontSize: 6.5,
     fontWeight: '800',
   },
 
-  activeReward: {
+  terminalLine: {
+    color: '#687482',
+    fontSize: 7,
+    lineHeight: 14,
+  },
+
+  prompt: {
+    color: '#00B8FF',
+  },
+
+  success: {
     color: '#00F5A0',
+  },
+
+  instruction: {
+    color: '#AEB7C2',
     fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.7,
+    marginTop: 13,
+    marginBottom: 8,
+  },
+
+  choiceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#090D15',
+    borderWidth: 1,
+    borderColor: '#17202D',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 7,
+  },
+
+  choicePressed: {
+    opacity: 0.65,
+  },
+
+  choiceIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 7,
+    backgroundColor: '#0A1118',
+    borderWidth: 1,
+    borderColor: '#20303C',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 9,
+  },
+
+  choiceIconText: {
+    color: '#00B8FF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  choiceBody: {
+    flex: 1,
+  },
+
+  choiceTitle: {
+    color: '#DCE2E8',
+    fontSize: 8,
+    fontWeight: '900',
+  },
+
+  choiceDescription: {
+    color: '#59616F',
+    fontSize: 6.5,
+    lineHeight: 11,
+    marginTop: 3,
+  },
+
+  choiceArrow: {
+    color: '#414B58',
+    fontSize: 20,
+    marginLeft: 7,
+  },
+
+  messageBox: {
+    backgroundColor: '#090D15',
+    borderWidth: 1,
+    borderColor: '#17202D',
+    borderRadius: 7,
+    padding: 9,
+    marginTop: 5,
+  },
+
+  messageText: {
+    color: '#00B8FF',
+    fontSize: 6.5,
+    fontWeight: '800',
+  },
+
+  outcomeCard: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#31503F',
+    backgroundColor: '#0B1712',
+    borderRadius: 8,
+    padding: 11,
+  },
+
+  outcomeSuccess: {
+    borderColor: '#14513E',
+  },
+
+  outcomePartial: {
+    borderColor: '#5B4B1B',
+    backgroundColor: '#161205',
+  },
+
+  outcomeFailure: {
+    borderColor: '#542034',
+    backgroundColor: '#16090E',
+  },
+
+  outcomeTitle: {
+    color: '#DCE2E8',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+
+  outcomeText: {
+    color: '#71808E',
+    fontSize: 7,
+    marginTop: 5,
+  },
+
+  continueButton: {
+    backgroundColor: '#00F5A0',
+    borderRadius: 6,
+    alignItems: 'center',
+    paddingVertical: 10,
+    marginTop: 10,
+  },
+
+  continueText: {
+    color: '#03100A',
+    fontSize: 6.5,
     fontWeight: '900',
   },
 
@@ -804,12 +1595,8 @@ const styles = StyleSheet.create({
     marginBottom: 9,
   },
 
-  runningCard: {
-    borderColor: '#14513E',
-  },
-
   lockedCard: {
-    opacity: 0.55,
+    opacity: 0.48,
   },
 
   missionTop: {
@@ -846,7 +1633,6 @@ const styles = StyleSheet.create({
     color: '#DCE2E8',
     fontSize: 10,
     fontWeight: '900',
-    letterSpacing: 0.5,
     flex: 1,
   },
 
@@ -885,7 +1671,6 @@ const styles = StyleSheet.create({
     color: '#59616F',
     fontSize: 6,
     fontWeight: '800',
-    letterSpacing: 0.5,
   },
 
   reward: {
@@ -934,145 +1719,54 @@ const styles = StyleSheet.create({
     backgroundColor: '#00F5A0',
     borderRadius: 6,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 9,
   },
 
   lockedButton: {
     backgroundColor: '#151B24',
   },
 
-  busyButton: {
-    backgroundColor: '#111923',
-  },
-
-  buttonPressed: {
-    opacity: 0.7,
-  },
-
-  startText: {
-    color: '#03100A',
-    fontSize: 7,
-    fontWeight: '900',
-    letterSpacing: 0.7,
-  },
-
   lockedButtonText: {
     color: '#59616F',
   },
 
+  startText: {
+    color: '#03100A',
+    fontSize: 6.5,
+    fontWeight: '900',
+  },
+
   startArrow: {
     color: '#03100A',
-    fontSize: 17,
+    fontSize: 16,
     marginLeft: 5,
   },
 
-  lockedText: {
-    color: '#59616F',
+  buttonPressed: {
+    opacity: 0.65,
   },
 
-  chainCard: {
-    flexDirection: 'row',
-    backgroundColor: '#081017',
+  infoCard: {
+    backgroundColor: '#090D15',
     borderWidth: 1,
-    borderColor: '#12303A',
-    borderRadius: 10,
-    padding: 12,
+    borderColor: '#17202D',
+    borderRadius: 9,
+    padding: 11,
     marginTop: 7,
   },
 
-  chainIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 7,
-    backgroundColor: '#0A1720',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-
-  chainIconText: {
-    color: '#00B8FF',
-    fontSize: 14,
-  },
-
-  chainBody: {
-    flex: 1,
-  },
-
-  chainTitle: {
-    color: '#8A9AA8',
-    fontSize: 8,
+  infoTitle: {
+    color: '#59616F',
+    fontSize: 6.5,
     fontWeight: '900',
     letterSpacing: 1,
   },
 
-  chainText: {
-    color: '#59616F',
-    fontSize: 7.5,
-    lineHeight: 13,
-    marginTop: 4,
-  },
-
-  chainBar: {
-    height: 4,
-    backgroundColor: '#18202B',
-    borderRadius: 2,
-    overflow: 'hidden',
-    marginTop: 8,
-  },
-
-  chainFill: {
-    width: '60%',
-    height: '100%',
-    backgroundColor: '#00B8FF',
-  },
-
-  chainProgress: {
-    color: '#59616F',
-    fontSize: 6,
-    marginTop: 4,
-  },
-
-  warning: {
-    flexDirection: 'row',
-    backgroundColor: '#11100A',
-    borderWidth: 1,
-    borderColor: '#393019',
-    borderRadius: 9,
-    padding: 11,
-    marginTop: 9,
-  },
-
-  warningIcon: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#FFB800',
-    color: '#FFB800',
-    textAlign: 'center',
-    lineHeight: 18,
-    fontSize: 10,
-    fontWeight: '900',
-    marginRight: 9,
-  },
-
-  warningBody: {
-    flex: 1,
-  },
-
-  warningTitle: {
-    color: '#A98D43',
+  infoText: {
+    color: '#414B58',
     fontSize: 7,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-
-  warningText: {
-    color: '#6D6348',
-    fontSize: 7,
-    lineHeight: 13,
-    marginTop: 3,
+    lineHeight: 12,
+    marginTop: 5,
   },
 
   footer: {
@@ -1081,6 +1775,6 @@ const styles = StyleSheet.create({
     fontSize: 7,
     fontWeight: '700',
     letterSpacing: 1.2,
-    marginTop: 24,
+    marginTop: 25,
   },
 });
