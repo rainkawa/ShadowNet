@@ -12,6 +12,18 @@ type OperationState = {
   missionId: string;
   startedAt: number;
   completesAt: number;
+
+  phase: number;
+  mistakes: number;
+  warnings: number;
+  traceGenerated: number;
+  completed: boolean;
+  outcome:
+    | 'RUNNING'
+    | 'SUCCESS'
+    | 'PARTIAL'
+    | 'FAILURE'
+    | 'CRITICAL_FAILURE';
 };
 
 type GameState = {
@@ -79,6 +91,19 @@ type GameContextType = {
   startOperation: (
     missionId: string,
     duration: number
+  ) => boolean;
+
+  advanceOperation: (
+    operationId: string,
+    success: boolean,
+    tracePenalty: number
+  ) => boolean;
+
+  resolveOperation: (
+    operationId: string,
+    reward: number,
+    xp: number,
+    reputation: number
   ) => boolean;
 
   claimOperation: (
@@ -583,6 +608,13 @@ export function GameProvider({
           startedAt: now,
           completesAt:
             now + duration * 1000,
+
+          phase: 0,
+          mistakes: 0,
+          warnings: 0,
+          traceGenerated: 0,
+          completed: false,
+          outcome: 'RUNNING',
         };
 
         started = true;
@@ -597,6 +629,227 @@ export function GameProvider({
       });
 
       return started;
+    },
+    []
+  );
+
+  const advanceOperation = useCallback(
+    (
+      operationId: string,
+      success: boolean,
+      tracePenalty: number
+    ) => {
+      let advanced = false;
+
+      setGame((current) => {
+        const operation =
+          current.operations.find(
+            (item) =>
+              item.id === operationId
+          );
+
+        if (
+          !operation ||
+          operation.completed
+        ) {
+          return current;
+        }
+
+        advanced = true;
+
+        if (success) {
+          return {
+            ...current,
+            operations:
+              current.operations.map(
+                (item) =>
+                  item.id === operationId
+                    ? {
+                        ...item,
+                        phase:
+                          item.phase + 1,
+                      }
+                    : item
+              ),
+          };
+        }
+
+        const nextMistakes =
+          operation.mistakes + 1;
+
+        const nextTrace =
+          Math.min(
+            100,
+            current.trace +
+              tracePenalty
+          );
+
+        const criticalFailure =
+          nextMistakes >= 2 ||
+          nextTrace >= 100;
+
+        return {
+          ...current,
+
+          trace: nextTrace,
+
+          operations:
+            current.operations.map(
+              (item) =>
+                item.id === operationId
+                  ? {
+                      ...item,
+                      phase:
+                        item.phase + 1,
+                      mistakes:
+                        nextMistakes,
+                      warnings:
+                        item.warnings + 1,
+                      traceGenerated:
+                        item.traceGenerated +
+                        tracePenalty,
+                      completed:
+                        criticalFailure,
+                      outcome:
+                        criticalFailure
+                          ? 'CRITICAL_FAILURE'
+                          : 'RUNNING',
+                    }
+                  : item
+            ),
+        };
+      });
+
+      return advanced;
+    },
+    []
+  );
+
+  const resolveOperation = useCallback(
+    (
+      operationId: string,
+      reward: number,
+      xp: number,
+      reputation: number
+    ) => {
+      let resolved = false;
+
+      setGame((current) => {
+        const operation =
+          current.operations.find(
+            (item) =>
+              item.id === operationId
+          );
+
+        if (!operation) {
+          return current;
+        }
+
+        if (
+          operation.outcome ===
+          'CRITICAL_FAILURE'
+        ) {
+          return {
+            ...current,
+            totalOperations:
+              current.totalOperations + 1,
+            failedOperations:
+              current.failedOperations + 1,
+            completedToday:
+              current.completedToday + 1,
+            operations:
+              current.operations.filter(
+                (item) =>
+                  item.id !== operationId
+              ),
+            lastActiveAt:
+              Date.now(),
+          };
+        }
+
+        if (operation.phase < 3) {
+          return current;
+        }
+
+        resolved = true;
+
+        const outcome =
+          operation.mistakes === 0
+            ? 'SUCCESS'
+            : 'PARTIAL';
+
+        const rewardMultiplier =
+          outcome === 'SUCCESS'
+            ? 1
+            : 0.55;
+
+        const xpMultiplier =
+          outcome === 'SUCCESS'
+            ? 1
+            : 0.7;
+
+        const finalReward =
+          Math.floor(
+            reward * rewardMultiplier
+          );
+
+        const finalXp =
+          Math.floor(
+            xp * xpMultiplier
+          );
+
+        return {
+          ...current,
+
+          credits:
+            current.credits +
+            finalReward,
+
+          xp:
+            current.xp +
+            finalXp,
+
+          reputation:
+            Math.max(
+              0,
+              current.reputation +
+                (outcome === 'SUCCESS'
+                  ? reputation
+                  : Math.floor(
+                      reputation * 0.5
+                    ))
+            ),
+
+          totalOperations:
+            current.totalOperations + 1,
+
+          successfulOperations:
+            current.successfulOperations +
+            (outcome === 'SUCCESS'
+              ? 1
+              : 0),
+
+          failedOperations:
+            current.failedOperations +
+            (outcome === 'PARTIAL'
+              ? 1
+              : 0),
+
+          completedToday:
+            current.completedToday + 1,
+
+          operations:
+            current.operations.filter(
+              (item) =>
+                item.id !== operationId
+            ),
+
+          lastActiveAt:
+            Date.now(),
+        };
+      });
+
+      return resolved;
     },
     []
   );
@@ -981,6 +1234,8 @@ export function GameProvider({
       recordOperation,
 
       startOperation,
+      advanceOperation,
+      resolveOperation,
       claimOperation,
 
       buyItem,
@@ -1007,6 +1262,8 @@ export function GameProvider({
       addReputation,
       recordOperation,
       startOperation,
+      advanceOperation,
+      resolveOperation,
       claimOperation,
       buyItem,
       unlockSkill,
