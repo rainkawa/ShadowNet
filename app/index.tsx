@@ -34,6 +34,11 @@ export default function HomeScreen() {
     game,
     stats,
     collectPassiveIncome,
+    xpRequired,
+    xpProgress,
+    rank,
+    rankNext,
+    rankProgress,
   } = useGame();
 
   // Idle gelirini canlı olarak üret.
@@ -80,6 +85,69 @@ export default function HomeScreen() {
           <View style={styles.online}>
             <View style={styles.onlineDot} />
             <Text style={styles.onlineText}>ONLINE</Text>
+          </View>
+        </View>
+
+        <View style={styles.profileCard}>
+          <View style={styles.profileAvatar}>
+            <Text style={styles.profileAvatarText}>◆</Text>
+          </View>
+
+          <View style={styles.profileMain}>
+            <View style={styles.profileTopRow}>
+              <View>
+                <Text style={styles.profileName}>
+                  SHADOW
+                </Text>
+
+                <Text style={styles.profileRank}>
+                  {rank}
+                </Text>
+              </View>
+
+              <View style={styles.levelBadge}>
+                <Text style={styles.levelBadgeLabel}>
+                  LEVEL
+                </Text>
+
+                <Text style={styles.levelBadgeValue}>
+                  {game.level}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.profileXpHeader}>
+              <Text style={styles.profileXpLabel}>
+                EXPERIENCE
+              </Text>
+
+              <Text style={styles.profileXpValue}>
+                {game.xp.toLocaleString()} / {xpRequired.toLocaleString()} XP
+              </Text>
+            </View>
+
+            <View style={styles.profileXpBar}>
+              <View
+                style={[
+                  styles.profileXpFill,
+                  {
+                    width: `${xpProgress}%`,
+                  },
+                ]}
+              />
+            </View>
+
+            <View style={styles.profileBottomRow}>
+              <Text style={styles.profileNextRank}>
+                {rankNext
+                  ? `NEXT RANK // ${rankNext}`
+                  : 'MAXIMUM RANK'}
+              </Text>
+
+              <Text style={styles.profileRankProgress}>
+                {Math.floor(rankProgress)}%
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -363,6 +431,137 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '800',
     letterSpacing: 1,
+  },
+
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#090D15',
+    borderWidth: 1,
+    borderColor: '#17202D',
+    borderRadius: 12,
+    padding: 13,
+    marginBottom: 10,
+  },
+
+  profileAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 11,
+    backgroundColor: '#071811',
+    borderWidth: 1,
+    borderColor: '#14513E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+
+  profileAvatarText: {
+    color: '#00F5A0',
+    fontSize: 21,
+    fontWeight: '900',
+  },
+
+  profileMain: {
+    flex: 1,
+  },
+
+  profileTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+
+  profileName: {
+    color: '#F2F5F7',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 1.1,
+  },
+
+  profileRank: {
+    color: '#00F5A0',
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+    marginTop: 3,
+  },
+
+  levelBadge: {
+    minWidth: 48,
+    alignItems: 'center',
+    backgroundColor: '#0A1118',
+    borderWidth: 1,
+    borderColor: '#20303C',
+    borderRadius: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+
+  levelBadgeLabel: {
+    color: '#59616F',
+    fontSize: 5.5,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+
+  levelBadgeValue: {
+    color: '#00B8FF',
+    fontSize: 12,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  profileXpHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 9,
+  },
+
+  profileXpLabel: {
+    color: '#59616F',
+    fontSize: 5.5,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+  },
+
+  profileXpValue: {
+    color: '#788593',
+    fontSize: 5.5,
+    fontWeight: '700',
+  },
+
+  profileXpBar: {
+    height: 5,
+    backgroundColor: '#18202B',
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginTop: 5,
+  },
+
+  profileXpFill: {
+    height: '100%',
+    backgroundColor: '#00B8FF',
+    borderRadius: 3,
+  },
+
+  profileBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 5,
+  },
+
+  profileNextRank: {
+    color: '#414B58',
+    fontSize: 5.5,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+
+  profileRankProgress: {
+    color: '#59616F',
+    fontSize: 5.5,
+    fontWeight: '900',
   },
 
   hero: {
