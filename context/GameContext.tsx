@@ -75,6 +75,10 @@ type GameContextType = {
   rankNext: string | null;
   rankProgress: number;
 
+  rankUpVersion: number;
+  rankUpMessage: string | null;
+  clearRankUp: () => void;
+
   addCredits: (amount: number) => void;
   collectPassiveIncome: () => number;
 
@@ -204,6 +208,16 @@ export function GameProvider({
 }) {
   const [game, setGame] =
     useState<GameState>(INITIAL_STATE);
+
+  const [rankUpVersion, setRankUpVersion] =
+    useState(0);
+
+  const [rankUpMessage, setRankUpMessage] =
+    useState<string | null>(null);
+
+  const clearRankUp = useCallback(() => {
+    setRankUpMessage(null);
+  }, []);
 
   const xpRequired = useMemo(() => {
     return Math.floor(
@@ -454,6 +468,9 @@ export function GameProvider({
       if (amount <= 0) return;
 
       setGame((current) => {
+        const previousRank =
+          getRank(current.level);
+
         let nextXp =
           current.xp + amount;
 
@@ -496,6 +513,21 @@ export function GameProvider({
           nextXp = Math.min(
             nextXp,
             required
+          );
+        }
+
+        const nextRank =
+          getRank(nextLevel);
+
+        if (
+          nextRank !== previousRank
+        ) {
+          setRankUpMessage(
+            `RANK UP // ${nextRank}`
+          );
+
+          setRankUpVersion(
+            (value) => value + 1
           );
         }
 
@@ -1220,6 +1252,10 @@ export function GameProvider({
       rankNext,
       rankProgress,
 
+      rankUpVersion,
+      rankUpMessage,
+      clearRankUp,
+
       addCredits,
       collectPassiveIncome,
 
@@ -1253,6 +1289,9 @@ export function GameProvider({
       rank,
       rankNext,
       rankProgress,
+      rankUpVersion,
+      rankUpMessage,
+      clearRankUp,
       addCredits,
       collectPassiveIncome,
       addXp,
