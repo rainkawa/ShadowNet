@@ -464,20 +464,17 @@ export default function OperationsScreen() {
       return;
     }
 
-    const started = startOperation(
+    const createdId = startOperation(
       mission.id,
       mission.duration
     );
 
-    if (!started) {
+    if (!createdId) {
       setMessage(
         'OPERATION COULD NOT START'
       );
       return;
     }
-
-    const createdId =
-      `${mission.id}-${Date.now()}`;
 
     setSelectedMissionId(mission.id);
     setSelectedOperationId(createdId);
