@@ -33,8 +33,27 @@ type Choice = {
   id: string;
   label: string;
   description: string;
-  correct: boolean;
+
+  /*
+   * V2 karar motoru:
+   * seçimlerin artık sadece true/false olması yerine
+   * risk, güvenlik ve beceri etkileri bulunuyor.
+   */
+  baseSuccess: number;
   trace: number;
+  rewardModifier: number;
+  xpModifier: number;
+
+  /*
+   * Bazı seçimler belirli skill/item'larla güçlenir.
+   */
+  requiredSkill?: string;
+  requiredItem?: string;
+
+  /*
+   * Kritik başarı ihtimalini etkiler.
+   */
+  criticalBonus?: number;
 };
 
 const missions: Mission[] = [
@@ -92,293 +111,739 @@ const missions: Mission[] = [
   },
 ];
 
-const choices: Record<string, Choice[][]> = {
+type OperationPhase = {
+  title: string;
+  subtitle: string;
+  choices: Choice[];
+};
+
+/*
+ * Her görev artık 5 aşamalı.
+ *
+ * Oyuncu:
+ * RECON
+ * ACCESS
+ * CONTROL
+ * EXTRACTION
+ * EXIT
+ *
+ * üzerinden ilerliyor.
+ *
+ * Bazı seçimler doğrudan iyi/kötü değil.
+ * Başarı oranı, trace ve ekipmanlara göre değişiyor.
+ */
+const choices: Record<string, OperationPhase[]> = {
   ghost: [
-    [
-      {
-        id: 'scan',
-        label: 'PASSIVE SCAN',
-        description: 'Map the node without touching the target.',
-        correct: true,
-        trace: 0,
-      },
-      {
-        id: 'probe',
-        label: 'ACTIVE PROBE',
-        description: 'Force a response from the remote host.',
-        correct: false,
-        trace: 8,
-      },
-      {
-        id: 'direct',
-        label: 'DIRECT ACCESS',
-        description: 'Attempt immediate entry.',
-        correct: false,
-        trace: 14,
-      },
-    ],
-    [
-      {
-        id: 'proxy',
-        label: 'PROXY CHAIN',
-        description: 'Route the connection through multiple relays.',
-        correct: true,
-        trace: 1,
-      },
-      {
-        id: 'direct',
-        label: 'DIRECT ROUTE',
-        description: 'Connect directly to the target.',
-        correct: false,
-        trace: 9,
-      },
-      {
-        id: 'spoof',
-        label: 'IDENTITY SPOOF',
-        description: 'Forge a temporary identity signature.',
-        correct: false,
-        trace: 6,
-      },
-    ],
-    [
-      {
-        id: 'extract',
-        label: 'QUIET EXTRACTION',
-        description: 'Copy only the requested payload.',
-        correct: true,
-        trace: 1,
-      },
-      {
-        id: 'dump',
-        label: 'FULL DATA DUMP',
-        description: 'Take everything from the node.',
-        correct: false,
-        trace: 12,
-      },
-      {
-        id: 'destroy',
-        label: 'PURGE NODE',
-        description: 'Destroy the evidence after extraction.',
-        correct: false,
-        trace: 10,
-      },
-    ],
+    {
+      title: 'RECON',
+      subtitle: 'MAP THE TARGET WITHOUT MAKING NOISE',
+      choices: [
+        {
+          id: 'passive_scan',
+          label: 'PASSIVE SCAN',
+          description: 'Observe the node without generating active traffic.',
+          baseSuccess: 82,
+          trace: 1,
+          rewardModifier: 0,
+          xpModifier: 5,
+          criticalBonus: 4,
+        },
+        {
+          id: 'metadata',
+          label: 'READ METADATA',
+          description: 'Pull exposed metadata and inspect the target surface.',
+          baseSuccess: 70,
+          trace: 3,
+          rewardModifier: 5,
+          xpModifier: 8,
+        },
+        {
+          id: 'active_probe',
+          label: 'ACTIVE PROBE',
+          description: 'Force the remote host to answer a probe.',
+          baseSuccess: 55,
+          trace: 9,
+          rewardModifier: 15,
+          xpModifier: 15,
+          requiredSkill: 'network_scan',
+        },
+      ],
+    },
+
+    {
+      title: 'ACCESS',
+      subtitle: 'CHOOSE AN ENTRY VECTOR',
+      choices: [
+        {
+          id: 'proxy_access',
+          label: 'PROXY ENTRY',
+          description: 'Route the access attempt through an anonymous relay.',
+          baseSuccess: 76,
+          trace: 2,
+          rewardModifier: 0,
+          xpModifier: 5,
+          requiredSkill: 'proxy_chain',
+          criticalBonus: 8,
+        },
+        {
+          id: 'credential',
+          label: 'CREDENTIAL VECTOR',
+          description: 'Attempt controlled credential-based access.',
+          baseSuccess: 63,
+          trace: 5,
+          rewardModifier: 10,
+          xpModifier: 10,
+        },
+        {
+          id: 'direct',
+          label: 'DIRECT ACCESS',
+          description: 'Connect directly and accept the additional exposure.',
+          baseSuccess: 48,
+          trace: 13,
+          rewardModifier: 25,
+          xpModifier: 20,
+        },
+      ],
+    },
+
+    {
+      title: 'CONTROL',
+      subtitle: 'STABILIZE THE SESSION',
+      choices: [
+        {
+          id: 'low_noise',
+          label: 'LOW-NOISE CONTROL',
+          description: 'Maintain a minimal command footprint.',
+          baseSuccess: 84,
+          trace: 2,
+          rewardModifier: 0,
+          xpModifier: 0,
+        },
+        {
+          id: 'aggressive',
+          label: 'AGGRESSIVE CONTROL',
+          description: 'Increase throughput at the cost of exposure.',
+          baseSuccess: 64,
+          trace: 9,
+          rewardModifier: 20,
+          xpModifier: 12,
+        },
+        {
+          id: 'exploit_control',
+          label: 'EXPLOIT CONTROL',
+          description: 'Use an exploit-assisted session takeover.',
+          baseSuccess: 72,
+          trace: 6,
+          rewardModifier: 15,
+          xpModifier: 18,
+          requiredSkill: 'exploit_basics',
+          requiredItem: 'exploit',
+          criticalBonus: 8,
+        },
+      ],
+    },
+
+    {
+      title: 'EXTRACTION',
+      subtitle: 'TAKE ONLY WHAT YOU NEED',
+      choices: [
+        {
+          id: 'targeted',
+          label: 'TARGETED EXTRACTION',
+          description: 'Copy only the contracted payload.',
+          baseSuccess: 84,
+          trace: 2,
+          rewardModifier: 0,
+          xpModifier: 0,
+          criticalBonus: 5,
+        },
+        {
+          id: 'extended',
+          label: 'EXTENDED EXTRACTION',
+          description: 'Pull additional intelligence from the target.',
+          baseSuccess: 66,
+          trace: 8,
+          rewardModifier: 30,
+          xpModifier: 20,
+        },
+        {
+          id: 'full_dump',
+          label: 'FULL DUMP',
+          description: 'Attempt to copy the entire target dataset.',
+          baseSuccess: 50,
+          trace: 16,
+          rewardModifier: 60,
+          xpModifier: 30,
+        },
+      ],
+    },
+
+    {
+      title: 'EXIT',
+      subtitle: 'LEAVE BEFORE THE WINDOW CLOSES',
+      choices: [
+        {
+          id: 'clean_exit',
+          label: 'CLEAN EXIT',
+          description: 'Terminate the session and remove active handles.',
+          baseSuccess: 88,
+          trace: 1,
+          rewardModifier: 0,
+          xpModifier: 0,
+          criticalBonus: 8,
+        },
+        {
+          id: 'fast_exit',
+          label: 'FAST EXIT',
+          description: 'Leave immediately before the target reacts.',
+          baseSuccess: 70,
+          trace: 4,
+          rewardModifier: -5,
+          xpModifier: 5,
+        },
+        {
+          id: 'linger',
+          label: 'LINGER FOR INTEL',
+          description: 'Stay online longer to search for additional value.',
+          baseSuccess: 52,
+          trace: 14,
+          rewardModifier: 45,
+          xpModifier: 25,
+        },
+      ],
+    },
   ],
 
   blackout: [
-    [
-      {
-        id: 'observe',
-        label: 'OBSERVE TRAFFIC',
-        description: 'Study relay patterns first.',
-        correct: true,
-        trace: 0,
-      },
-      {
-        id: 'flood',
-        label: 'FLOOD RELAY',
-        description: 'Overload the relay immediately.',
-        correct: false,
-        trace: 12,
-      },
-      {
-        id: 'scan',
-        label: 'DEEP SCAN',
-        description: 'Aggressively scan every service.',
-        correct: false,
-        trace: 8,
-      },
-    ],
-    [
-      {
-        id: 'mirror',
-        label: 'MIRROR ROUTE',
-        description: 'Clone the relay path and attack the mirror.',
-        correct: true,
-        trace: 1,
-      },
-      {
-        id: 'brute',
-        label: 'BRUTE FORCE',
-        description: 'Hammer the authentication layer.',
-        correct: false,
-        trace: 13,
-      },
-      {
-        id: 'inject',
-        label: 'DIRECT INJECTION',
-        description: 'Inject a command into the primary relay.',
-        correct: false,
-        trace: 10,
-      },
-    ],
-    [
-      {
-        id: 'shutdown',
-        label: 'CONTROLLED SHUTDOWN',
-        description: 'Disable the relay subsystem cleanly.',
-        correct: true,
-        trace: 1,
-      },
-      {
-        id: 'crash',
-        label: 'FORCED CRASH',
-        description: 'Destroy the relay immediately.',
-        correct: false,
-        trace: 15,
-      },
-      {
-        id: 'linger',
-        label: 'MAINTAIN ACCESS',
-        description: 'Keep the connection open longer.',
-        correct: false,
-        trace: 8,
-      },
-    ],
+    {
+      title: 'RECON',
+      subtitle: 'UNDERSTAND THE RELAY',
+      choices: [
+        {
+          id: 'observe',
+          label: 'OBSERVE TRAFFIC',
+          description: 'Monitor traffic before interacting with the relay.',
+          baseSuccess: 78,
+          trace: 1,
+          rewardModifier: 0,
+          xpModifier: 5,
+        },
+        {
+          id: 'deep_scan',
+          label: 'DEEP SCAN',
+          description: 'Probe several services to map the relay.',
+          baseSuccess: 62,
+          trace: 7,
+          rewardModifier: 15,
+          xpModifier: 12,
+          requiredSkill: 'network_scan',
+        },
+        {
+          id: 'flood',
+          label: 'FLOOD RELAY',
+          description: 'Overwhelm the relay before studying its structure.',
+          baseSuccess: 42,
+          trace: 16,
+          rewardModifier: 35,
+          xpModifier: 20,
+        },
+      ],
+    },
+
+    {
+      title: 'ACCESS',
+      subtitle: 'ENTER THE CONTROL LAYER',
+      choices: [
+        {
+          id: 'mirror',
+          label: 'MIRROR ROUTE',
+          description: 'Use a mirrored route to approach the relay.',
+          baseSuccess: 76,
+          trace: 2,
+          rewardModifier: 5,
+          xpModifier: 8,
+          requiredSkill: 'proxy_chain',
+        },
+        {
+          id: 'inject',
+          label: 'CONTROLLED INJECTION',
+          description: 'Inject a limited command into the relay.',
+          baseSuccess: 65,
+          trace: 8,
+          rewardModifier: 15,
+          xpModifier: 12,
+        },
+        {
+          id: 'brute',
+          label: 'BRUTE FORCE',
+          description: 'Hammer the authentication layer.',
+          baseSuccess: 48,
+          trace: 18,
+          rewardModifier: 40,
+          xpModifier: 25,
+        },
+      ],
+    },
+
+    {
+      title: 'DISRUPTION',
+      subtitle: 'DISABLE THE RELAY',
+      choices: [
+        {
+          id: 'controlled_shutdown',
+          label: 'CONTROLLED SHUTDOWN',
+          description: 'Take the relay offline through its intended control path.',
+          baseSuccess: 82,
+          trace: 2,
+          rewardModifier: 0,
+          xpModifier: 5,
+        },
+        {
+          id: 'timed_crash',
+          label: 'TIMED CRASH',
+          description: 'Force a failure while minimizing session time.',
+          baseSuccess: 63,
+          trace: 9,
+          rewardModifier: 20,
+          xpModifier: 15,
+        },
+        {
+          id: 'hard_crash',
+          label: 'HARD CRASH',
+          description: 'Destroy the relay immediately.',
+          baseSuccess: 45,
+          trace: 20,
+          rewardModifier: 45,
+          xpModifier: 25,
+        },
+      ],
+    },
+
+    {
+      title: 'EXTRACTION',
+      subtitle: 'TAKE THE CONTRACTED DATA',
+      choices: [
+        {
+          id: 'targeted',
+          label: 'TARGETED EXTRACTION',
+          description: 'Take only the requested payload.',
+          baseSuccess: 82,
+          trace: 2,
+          rewardModifier: 0,
+          xpModifier: 0,
+        },
+        {
+          id: 'intel',
+          label: 'INTELLIGENCE EXTRACTION',
+          description: 'Collect additional information from the relay.',
+          baseSuccess: 64,
+          trace: 8,
+          rewardModifier: 35,
+          xpModifier: 22,
+        },
+        {
+          id: 'everything',
+          label: 'TAKE EVERYTHING',
+          description: 'Attempt maximum data extraction.',
+          baseSuccess: 44,
+          trace: 17,
+          rewardModifier: 65,
+          xpModifier: 30,
+        },
+      ],
+    },
+
+    {
+      title: 'EXIT',
+      subtitle: 'DISAPPEAR FROM THE RELAY',
+      choices: [
+        {
+          id: 'mirror_exit',
+          label: 'MIRROR EXIT',
+          description: 'Terminate through the mirrored route.',
+          baseSuccess: 85,
+          trace: 1,
+          rewardModifier: 0,
+          xpModifier: 0,
+          requiredSkill: 'proxy_chain',
+          criticalBonus: 8,
+        },
+        {
+          id: 'rapid_exit',
+          label: 'RAPID EXIT',
+          description: 'Close everything and leave immediately.',
+          baseSuccess: 72,
+          trace: 4,
+          rewardModifier: -5,
+          xpModifier: 5,
+        },
+        {
+          id: 'hold_position',
+          label: 'HOLD POSITION',
+          description: 'Remain inside the network to harvest more data.',
+          baseSuccess: 50,
+          trace: 15,
+          rewardModifier: 40,
+          xpModifier: 20,
+        },
+      ],
+    },
   ],
 
   vault: [
-    [
-      {
-        id: 'intel',
-        label: 'READ METADATA',
-        description: 'Analyze the vault structure first.',
-        correct: true,
-        trace: 0,
-      },
-      {
-        id: 'attack',
-        label: 'ATTACK SURFACE',
-        description: 'Start probing protected endpoints.',
-        correct: false,
-        trace: 12,
-      },
-      {
-        id: 'credentials',
-        label: 'GUESS CREDENTIALS',
-        description: 'Try common administrator credentials.',
-        correct: false,
-        trace: 10,
-      },
-    ],
-    [
-      {
-        id: 'key',
-        label: 'KEY RECONSTRUCTION',
-        description: 'Rebuild the fragmented access key.',
-        correct: true,
-        trace: 2,
-      },
-      {
-        id: 'brute',
-        label: 'BRUTE FORCE',
-        description: 'Search the entire key space.',
-        correct: false,
-        trace: 18,
-      },
-      {
-        id: 'bypass',
-        label: 'SECURITY BYPASS',
-        description: 'Attempt to bypass the encryption layer.',
-        correct: false,
-        trace: 14,
-      },
-    ],
-    [
-      {
-        id: 'extract',
-        label: 'TARGETED EXTRACTION',
-        description: 'Extract only the contracted data.',
-        correct: true,
-        trace: 1,
-      },
-      {
-        id: 'all',
-        label: 'TOTAL EXTRACTION',
-        description: 'Copy the complete vault.',
-        correct: false,
-        trace: 14,
-      },
-      {
-        id: 'wipe',
-        label: 'WIPE EVERYTHING',
-        description: 'Destroy the vault after entry.',
-        correct: false,
-        trace: 16,
-      },
-    ],
+    {
+      title: 'RECON',
+      subtitle: 'ANALYZE THE VAULT STRUCTURE',
+      choices: [
+        {
+          id: 'metadata',
+          label: 'READ METADATA',
+          description: 'Analyze exposed vault information before attacking.',
+          baseSuccess: 80,
+          trace: 1,
+          rewardModifier: 0,
+          xpModifier: 5,
+        },
+        {
+          id: 'surface',
+          label: 'MAP ATTACK SURFACE',
+          description: 'Probe protected endpoints for structural weaknesses.',
+          baseSuccess: 63,
+          trace: 7,
+          rewardModifier: 20,
+          xpModifier: 12,
+          requiredSkill: 'network_scan',
+        },
+        {
+          id: 'credentials',
+          label: 'GUESS CREDENTIALS',
+          description: 'Attempt direct credential guessing.',
+          baseSuccess: 38,
+          trace: 16,
+          rewardModifier: 35,
+          xpModifier: 20,
+        },
+      ],
+    },
+
+    {
+      title: 'ACCESS',
+      subtitle: 'RECONSTRUCT THE ACCESS PATH',
+      choices: [
+        {
+          id: 'key',
+          label: 'KEY RECONSTRUCTION',
+          description: 'Reconstruct the fragmented access key.',
+          baseSuccess: 74,
+          trace: 3,
+          rewardModifier: 5,
+          xpModifier: 10,
+          requiredSkill: 'zero_day',
+          criticalBonus: 6,
+        },
+        {
+          id: 'bypass',
+          label: 'SECURITY BYPASS',
+          description: 'Attempt to bypass the primary encryption layer.',
+          baseSuccess: 54,
+          trace: 12,
+          rewardModifier: 25,
+          xpModifier: 18,
+        },
+        {
+          id: 'brute',
+          label: 'BRUTE FORCE',
+          description: 'Search the key space directly.',
+          baseSuccess: 34,
+          trace: 21,
+          rewardModifier: 55,
+          xpModifier: 28,
+        },
+      ],
+    },
+
+    {
+      title: 'CONTROL',
+      subtitle: 'MAINTAIN ACCESS UNDER PRESSURE',
+      choices: [
+        {
+          id: 'stable',
+          label: 'STABLE SESSION',
+          description: 'Maintain a narrow and controlled session.',
+          baseSuccess: 82,
+          trace: 3,
+          rewardModifier: 0,
+          xpModifier: 0,
+        },
+        {
+          id: 'exploit',
+          label: 'EXPLOIT SESSION',
+          description: 'Push an exploit deeper into the vault.',
+          baseSuccess: 63,
+          trace: 10,
+          rewardModifier: 25,
+          xpModifier: 18,
+          requiredSkill: 'exploit_basics',
+        },
+        {
+          id: 'root',
+          label: 'ROOT ATTEMPT',
+          description: 'Attempt full administrative control.',
+          baseSuccess: 44,
+          trace: 18,
+          rewardModifier: 55,
+          xpModifier: 30,
+          requiredSkill: 'root_access',
+        },
+      ],
+    },
+
+    {
+      title: 'EXTRACTION',
+      subtitle: 'BALANCE VALUE AGAINST EXPOSURE',
+      choices: [
+        {
+          id: 'contract',
+          label: 'CONTRACT DATA',
+          description: 'Extract only the requested information.',
+          baseSuccess: 84,
+          trace: 3,
+          rewardModifier: 0,
+          xpModifier: 0,
+        },
+        {
+          id: 'intel',
+          label: 'ADDITIONAL INTEL',
+          description: 'Take extra information while the vault is open.',
+          baseSuccess: 61,
+          trace: 11,
+          rewardModifier: 45,
+          xpModifier: 20,
+        },
+        {
+          id: 'vault_dump',
+          label: 'VAULT DUMP',
+          description: 'Attempt to extract the complete vault.',
+          baseSuccess: 38,
+          trace: 23,
+          rewardModifier: 80,
+          xpModifier: 35,
+        },
+      ],
+    },
+
+    {
+      title: 'EXIT',
+      subtitle: 'CLOSE THE VAULT WITHOUT BURNING THE ROUTE',
+      choices: [
+        {
+          id: 'quiet',
+          label: 'QUIET EXIT',
+          description: 'Close the session cleanly.',
+          baseSuccess: 86,
+          trace: 2,
+          rewardModifier: 0,
+          xpModifier: 0,
+          criticalBonus: 10,
+        },
+        {
+          id: 'quick',
+          label: 'QUICK EXIT',
+          description: 'Leave before security can react.',
+          baseSuccess: 72,
+          trace: 5,
+          rewardModifier: -5,
+          xpModifier: 5,
+        },
+        {
+          id: 'linger',
+          label: 'LINGER',
+          description: 'Stay longer to search for hidden assets.',
+          baseSuccess: 47,
+          trace: 17,
+          rewardModifier: 50,
+          xpModifier: 25,
+        },
+      ],
+    },
   ],
 
   phantom: [
-    [
-      {
-        id: 'ghost',
-        label: 'GHOST ROUTE',
-        description: 'Build a hidden route before touching the relay.',
-        correct: true,
-        trace: 0,
-      },
-      {
-        id: 'direct',
-        label: 'DIRECT TAKEOVER',
-        description: 'Attempt immediate control of the relay.',
-        correct: false,
-        trace: 18,
-      },
-      {
-        id: 'scan',
-        label: 'FULL NETWORK SCAN',
-        description: 'Scan all connected nodes.',
-        correct: false,
-        trace: 14,
-      },
-    ],
-    [
-      {
-        id: 'mirror',
-        label: 'MIRROR RELAY',
-        description: 'Clone the relay through a disposable mirror.',
-        correct: true,
-        trace: 2,
-      },
-      {
-        id: 'force',
-        label: 'FORCE ACCESS',
-        description: 'Break through the primary gateway.',
-        correct: false,
-        trace: 20,
-      },
-      {
-        id: 'spoof',
-        label: 'FULL ID SPOOF',
-        description: 'Replace the entire identity chain.',
-        correct: false,
-        trace: 12,
-      },
-    ],
-    [
-      {
-        id: 'lock',
-        label: 'LOCK ROUTE',
-        description: 'Seal the route and leave minimal evidence.',
-        correct: true,
-        trace: 2,
-      },
-      {
-        id: 'expand',
-        label: 'EXPAND CONTROL',
-        description: 'Take control of additional relays.',
-        correct: false,
-        trace: 18,
-      },
-      {
-        id: 'destroy',
-        label: 'DESTROY RELAY',
-        description: 'Destroy the target after takeover.',
-        correct: false,
-        trace: 20,
-      },
-    ],
+    {
+      title: 'RECON',
+      subtitle: 'MAP THE UNKNOWN ROUTE',
+      choices: [
+        {
+          id: 'ghost_route',
+          label: 'GHOST ROUTE',
+          description: 'Build a quiet route before touching the relay.',
+          baseSuccess: 76,
+          trace: 2,
+          rewardModifier: 5,
+          xpModifier: 10,
+          requiredSkill: 'proxy_chain',
+        },
+        {
+          id: 'network_map',
+          label: 'NETWORK MAP',
+          description: 'Map connected relays before committing.',
+          baseSuccess: 61,
+          trace: 8,
+          rewardModifier: 25,
+          xpModifier: 18,
+          requiredSkill: 'network_scan',
+        },
+        {
+          id: 'direct_takeover',
+          label: 'DIRECT TAKEOVER',
+          description: 'Attempt immediate control.',
+          baseSuccess: 35,
+          trace: 20,
+          rewardModifier: 60,
+          xpModifier: 35,
+        },
+      ],
+    },
+
+    {
+      title: 'ACCESS',
+      subtitle: 'BREAK INTO THE PRIMARY RELAY',
+      choices: [
+        {
+          id: 'mirror',
+          label: 'MIRROR RELAY',
+          description: 'Clone the relay through a disposable route.',
+          baseSuccess: 73,
+          trace: 4,
+          rewardModifier: 10,
+          xpModifier: 12,
+          requiredSkill: 'proxy_chain',
+        },
+        {
+          id: 'spoof',
+          label: 'IDENTITY SPOOF',
+          description: 'Replace part of the relay identity chain.',
+          baseSuccess: 60,
+          trace: 9,
+          rewardModifier: 25,
+          xpModifier: 18,
+        },
+        {
+          id: 'force',
+          label: 'FORCE ACCESS',
+          description: 'Break through the primary gateway.',
+          baseSuccess: 32,
+          trace: 24,
+          rewardModifier: 70,
+          xpModifier: 38,
+        },
+      ],
+    },
+
+    {
+      title: 'CONTROL',
+      subtitle: 'SECURE THE ROUTE',
+      choices: [
+        {
+          id: 'lock',
+          label: 'LOCK ROUTE',
+          description: 'Seal the route and minimize evidence.',
+          baseSuccess: 81,
+          trace: 3,
+          rewardModifier: 0,
+          xpModifier: 0,
+        },
+        {
+          id: 'expand',
+          label: 'EXPAND CONTROL',
+          description: 'Take control of secondary relays.',
+          baseSuccess: 57,
+          trace: 14,
+          rewardModifier: 40,
+          xpModifier: 24,
+        },
+        {
+          id: 'network_root',
+          label: 'NETWORK ROOT',
+          description: 'Attempt privileged control of the network.',
+          baseSuccess: 42,
+          trace: 21,
+          rewardModifier: 65,
+          xpModifier: 35,
+          requiredSkill: 'root_access',
+        },
+      ],
+    },
+
+    {
+      title: 'EXTRACTION',
+      subtitle: 'TAKE THE ROUTE DATA',
+      choices: [
+        {
+          id: 'targeted',
+          label: 'TARGETED EXTRACTION',
+          description: 'Take the contracted route data.',
+          baseSuccess: 80,
+          trace: 3,
+          rewardModifier: 0,
+          xpModifier: 0,
+        },
+        {
+          id: 'deep_intel',
+          label: 'DEEP INTEL',
+          description: 'Search connected relays for additional value.',
+          baseSuccess: 58,
+          trace: 13,
+          rewardModifier: 50,
+          xpModifier: 28,
+        },
+        {
+          id: 'network_dump',
+          label: 'NETWORK DUMP',
+          description: 'Attempt to collect everything.',
+          baseSuccess: 35,
+          trace: 26,
+          rewardModifier: 90,
+          xpModifier: 45,
+        },
+      ],
+    },
+
+    {
+      title: 'EXIT',
+      subtitle: 'VANISH FROM THE NETWORK',
+      choices: [
+        {
+          id: 'ghost_exit',
+          label: 'GHOST EXIT',
+          description: 'Disappear through a minimal trace route.',
+          baseSuccess: 84,
+          trace: 2,
+          rewardModifier: 5,
+          xpModifier: 5,
+          requiredSkill: 'ghost_identity',
+          criticalBonus: 12,
+        },
+        {
+          id: 'fast_exit',
+          label: 'FAST EXIT',
+          description: 'Terminate immediately.',
+          baseSuccess: 71,
+          trace: 5,
+          rewardModifier: -5,
+          xpModifier: 5,
+        },
+        {
+          id: 'stay',
+          label: 'STAY FOR MORE',
+          description: 'Keep access open for maximum information.',
+          baseSuccess: 43,
+          trace: 19,
+          rewardModifier: 55,
+          xpModifier: 30,
+        },
+      ],
+    },
   ],
 };
 
@@ -404,6 +869,7 @@ export default function OperationsScreen() {
 
   const [phase, setPhase] = useState(0);
   const [mistakes, setMistakes] = useState(0);
+  const [phaseRoll, setPhaseRoll] = useState<number | null>(null);
   const [operationTrace, setOperationTrace] =
     useState(0);
 
@@ -435,11 +901,13 @@ export default function OperationsScreen() {
         operation.id === selectedOperationId
     );
 
-  const phaseChoices =
+  const activePhase =
     activeMission
-      ? choices[activeMission.id]?.[phase] ??
-        []
-      : [];
+      ? choices[activeMission.id]?.[phase]
+      : undefined;
+
+  const phaseChoices =
+    activePhase?.choices ?? [];
 
   const resetOperation = () => {
     setSelectedMissionId(null);
@@ -499,113 +967,294 @@ export default function OperationsScreen() {
       return;
     }
 
-    const hasProxy =
-      game.unlockedSkills.includes(
-        'proxy_chain'
-      ) ||
-      game.ownedItems.includes(
-        'proxy'
-      );
-
-    const hasExploit =
-      game.unlockedSkills.includes(
-        'exploit_basics'
-      ) ||
-      game.ownedItems.includes(
-        'exploit'
-      );
-
-    const traceReduction =
-      stats.traceReduction;
-
-    const correctedTrace =
-      choice.correct
-        ? Math.max(
-            0,
-            choice.trace -
-              Math.floor(
-                traceReduction / 5
-              )
+    /*
+     * Skill/item etkileri.
+     *
+     * Eksik gereksinim varsa seçim hâlâ yapılabilir,
+     * fakat daha kötü başarı oranıyla çalışır.
+     */
+    const hasSkill =
+      choice.requiredSkill
+        ? game.unlockedSkills.includes(
+            choice.requiredSkill
           )
-        : choice.trace;
+        : false;
 
-    let effectiveCorrect =
-      choice.correct;
+    const hasItem =
+      choice.requiredItem
+        ? game.ownedItems.includes(
+            choice.requiredItem
+          )
+        : false;
 
-    // Skill / equipment can recover
-    // selected risky vectors.
+    let successChance =
+      choice.baseSuccess;
+
+    /*
+     * Seviye etkisi küçük tutuldu.
+     * Böylece oyuncu sadece level kasarak sistemi kırmıyor.
+     */
+    successChance +=
+      Math.min(
+        12,
+        Math.max(
+          0,
+          game.level - 1
+        ) * 0.45
+      );
+
+    /*
+     * Genel skill bonusu.
+     */
+    successChance +=
+      stats.successBonus * 0.45;
+
+    /*
+     * Gereken skill/item varsa anlamlı bonus.
+     */
     if (
-      !choice.correct &&
-      phase === 1 &&
-      hasProxy &&
-      choice.id === 'direct'
+      choice.requiredSkill
     ) {
-      effectiveCorrect = true;
+      if (hasSkill) {
+        successChance += 9;
+      } else {
+        successChance -= 7;
+      }
     }
 
     if (
-      !choice.correct &&
-      phase === 0 &&
-      hasExploit &&
-      choice.id === 'probe'
+      choice.requiredItem
     ) {
-      effectiveCorrect = true;
+      if (hasItem) {
+        successChance += 10;
+      } else {
+        successChance -= 12;
+      }
+    }
+
+    /*
+     * Trace yükseldikçe kararlar zorlaşıyor.
+     *
+     * Oyuncu trace'i yok sayarak sürekli yüksek
+     * değerli riskli seçimleri spamlayamaz.
+     */
+    successChance -=
+      Math.max(
+        0,
+        game.trace - 25
+      ) * 0.12;
+
+    successChance =
+      Math.min(
+        91,
+        Math.max(
+          15,
+          successChance
+        )
+      );
+
+    /*
+     * RNG.
+     */
+    const roll =
+      Math.random() *
+      100;
+
+    const success =
+      roll < successChance;
+
+    /*
+     * Trace reduction.
+     *
+     * Yanlış kararlar item/skill olsa bile tamamen
+     * silinmiyor.
+     */
+    const reduction =
+      Math.floor(
+        stats.traceReduction *
+          0.55
+      );
+
+    let generatedTrace =
+      Math.max(
+        1,
+        Math.floor(
+          choice.trace *
+            (
+              1 -
+              reduction / 100
+            )
+        )
+      );
+
+    /*
+     * Yüksek trace durumunda yeni hata daha pahalı.
+     */
+    if (
+      game.trace >= 70
+    ) {
+      generatedTrace += 3;
+    } else if (
+      game.trace >= 50
+    ) {
+      generatedTrace += 2;
+    }
+
+    /*
+     * Riskli seçimlerin başarısızlığı:
+     * normal trace + ek ceza.
+     */
+    if (!success) {
+      generatedTrace +=
+        Math.max(
+          1,
+          Math.floor(
+            choice.trace *
+              0.35
+          )
+        );
     }
 
     const nextMistakes =
       mistakes +
-      (effectiveCorrect ? 0 : 1);
+      (success ? 0 : 1);
 
-    const nextTrace =
-      operationTrace +
-      correctedTrace;
+    setPhaseRoll(
+      Math.floor(roll)
+    );
 
-    setMistakes(nextMistakes);
-    setOperationTrace(nextTrace);
+    setMistakes(
+      nextMistakes
+    );
+
+    setOperationTrace(
+      (current) =>
+        current + generatedTrace
+    );
 
     advanceOperation(
       activeOperation.id,
-      effectiveCorrect,
-      correctedTrace
+      success,
+      generatedTrace
     );
 
-    if (!effectiveCorrect) {
-      if (nextMistakes >= 2) {
-        setOutcome(
-          'CRITICAL_FAILURE'
-        );
+    /*
+     * Trace %100.
+     */
+    const projectedTrace =
+      Math.min(
+        100,
+        game.trace +
+          operationTrace +
+          generatedTrace
+      );
 
-        setMessage(
-          'SECURITY SYSTEM // TRACE LOCK'
-        );
-
-        return;
-      }
+    if (
+      !success &&
+      (
+        nextMistakes >= 2 ||
+        projectedTrace >= 100
+      )
+    ) {
+      setOutcome(
+        'CRITICAL_FAILURE'
+      );
 
       setMessage(
-        correctedTrace > 0
-          ? `WARNING // TRACE +${correctedTrace}%`
-          : 'WARNING // TRACE MITIGATED'
+        projectedTrace >= 100
+          ? 'TRACE 100% // SECURITY RESPONSE // CONNECTION TERMINATED'
+          : 'MULTIPLE ERRORS // SECURITY LOCK // OPERATION TERMINATED'
+      );
+
+      return;
+    }
+
+    if (!success) {
+      setMessage(
+        `FAILED DECISION // ${Math.floor(
+          successChance
+        )}% CHANCE // ROLL ${Math.floor(
+          roll
+        )} // TRACE +${generatedTrace}%`
       );
     } else {
       setMessage(
-        phase >= 2
-          ? 'FINAL ROUTE ACCEPTED // RESOLVING'
-          : 'ACCESS VECTOR ACCEPTED // CONTINUE'
+        `VECTOR ACCEPTED // ${Math.floor(
+          successChance
+        )}% CHANCE // ROLL ${Math.floor(
+          roll
+        )}`
       );
     }
 
-    if (phase >= 2) {
-      if (nextMistakes === 0) {
-        setOutcome('SUCCESS');
+    /*
+     * Beşinci faz tamamlanınca sonucu hesapla.
+     */
+    if (
+      phase >= 4
+    ) {
+      if (
+        nextMistakes === 0
+      ) {
+        /*
+         * Critical success artık çok zor.
+         * Yüksek trace kritik başarı şansını azaltıyor.
+         */
+        const criticalChance =
+          Math.max(
+            1,
+            Math.min(
+              9,
+              3 +
+                (choice.criticalBonus ??
+                  0) /
+                  2 -
+                Math.max(
+                  0,
+                  game.trace - 10
+                ) *
+                  0.03
+            )
+          );
+
+        const criticalRoll =
+          Math.random() *
+          100;
+
+        if (
+          criticalRoll <
+          criticalChance
+        ) {
+          setOutcome(
+            'CRITICAL_SUCCESS'
+          );
+
+          setMessage(
+            'PERFECT RUN // CRITICAL EXECUTION'
+          );
+        } else {
+          setOutcome(
+            'SUCCESS'
+          );
+
+          setMessage(
+            'OPERATION COMPLETE // CLEAN EXECUTION'
+          );
+        }
       } else {
-        setOutcome('PARTIAL');
+        setOutcome(
+          'PARTIAL'
+        );
+
+        setMessage(
+          'OPERATION COMPLETE // DAMAGE CONTROL PAYOUT'
+        );
       }
     } else {
       setPhase(
         (current) =>
           Math.min(
-            2,
+            4,
             current + 1
           )
       );
@@ -640,7 +1289,7 @@ export default function OperationsScreen() {
   ]);
 
   const progressPercent =
-    ((phase + 1) / 3) * 100;
+    ((phase + 1) / 5) * 100;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -726,12 +1375,18 @@ export default function OperationsScreen() {
               <View style={styles.operationTop}>
                 <View>
                   <Text style={styles.phaseLabel}>
-                    PHASE {phase + 1} / 3
+                    PHASE {phase + 1} / 5
                   </Text>
 
                   <Text style={styles.operationTitle}>
                     {activeMission.title}
                   </Text>
+
+                  {activePhase && (
+                    <Text style={styles.phaseSubtitle}>
+                      {activePhase.title} // {activePhase.subtitle}
+                    </Text>
+                  )}
                 </View>
 
                 <View style={styles.traceBox}>
@@ -803,7 +1458,7 @@ export default function OperationsScreen() {
               </View>
 
               <Text style={styles.instruction}>
-                SELECT THE SAFEST VECTOR
+                SELECT YOUR VECTOR
               </Text>
 
               {phaseChoices.map(
@@ -829,9 +1484,11 @@ export default function OperationsScreen() {
                           styles.choiceIconText
                         }
                       >
-                        {choice.correct
-                          ? '›'
-                          : '?'}
+                        {choice.requiredSkill
+                          ? 'S'
+                          : choice.requiredItem
+                            ? 'I'
+                            : '›'}
                       </Text>
                     </View>
 
@@ -848,6 +1505,12 @@ export default function OperationsScreen() {
                         style={styles.choiceDescription}
                       >
                         {choice.description}
+                      </Text>
+
+                      <Text
+                        style={styles.choiceMeta}
+                      >
+                        BASE {choice.baseSuccess}% // TRACE +{choice.trace}% // PAYOUT {choice.rewardModifier >= 0 ? '+' : ''}{choice.rewardModifier}%
                       </Text>
                     </View>
 
@@ -1201,14 +1864,14 @@ export default function OperationsScreen() {
           </Text>
 
           <Text style={styles.infoText}>
-            Correct decisions advance the operation.
-            Wrong decisions increase trace and mistakes.
-            Two mistakes can trigger a critical failure.
+            Five phases make up each contract.
+            Every decision has a success chance, trace cost and payout profile.
+            Two mistakes or 100% trace can terminate the operation.
           </Text>
         </View>
 
         <Text style={styles.footer}>
-          SHADOWNET // INTERACTIVE CONTRACT NETWORK v2.0
+          SHADOWNET // INTERACTIVE CONTRACT NETWORK v2.1
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -1396,6 +2059,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '900',
     marginTop: 4,
+  },
+
+  phaseSubtitle: {
+    color: '#59616F',
+    fontSize: 6,
+    fontWeight: '800',
+    marginTop: 3,
+    maxWidth: 220,
   },
 
   traceBox: {
