@@ -1931,6 +1931,7 @@ export function GameProvider({
         clearRankUp,
 
         addCredits,
+        spendCredits,
         collectPassiveIncome,
 
         addXp,
