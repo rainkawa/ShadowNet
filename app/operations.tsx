@@ -2213,6 +2213,14 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
+  choiceMeta: {
+    color: '#3F7180',
+    fontSize: 5.5,
+    fontWeight: '800',
+    marginTop: 5,
+    letterSpacing: 0.35,
+  },
+
   choiceArrow: {
     color: '#414B58',
     fontSize: 20,
