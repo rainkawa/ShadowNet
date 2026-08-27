@@ -783,7 +783,10 @@ export function GameProvider({
           return current;
         }
 
-        if (operation.outcome === 'CRITICAL_FAILURE') {
+        if (
+          operation.outcome ===
+          'CRITICAL_FAILURE'
+        ) {
           resolved = true;
 
           return {
@@ -809,7 +812,10 @@ export function GameProvider({
           };
         }
 
-        if (operation.phase < 3) {
+        if (
+          operation.phase < 3 ||
+          operation.completed
+        ) {
           return current;
         }
 
@@ -821,13 +827,6 @@ export function GameProvider({
 
         const success =
           operation.mistakes === 0;
-
-        const outcome =
-          criticalSuccess
-            ? 'CRITICAL_SUCCESS'
-            : success
-              ? 'SUCCESS'
-              : 'PARTIAL';
 
         const rewardMultiplier =
           criticalSuccess
@@ -843,20 +842,6 @@ export function GameProvider({
               ? 1
               : 0.6;
 
-        const reputationReward =
-          criticalSuccess
-            ? Math.floor(
-                reputation * 1.8
-              )
-            : success
-              ? reputation
-              : Math.max(
-                  1,
-                  Math.floor(
-                    reputation * 0.5
-                  )
-                );
-
         const intelMultiplier =
           current.ownedItems.includes(
             'intel'
@@ -868,7 +853,7 @@ export function GameProvider({
           current.unlockedSkills.includes(
             'scripts'
           )
-            ? 1.1
+            ? 1.10
             : 1;
 
         const finalReward =
@@ -885,27 +870,39 @@ export function GameProvider({
               scriptsMultiplier
           );
 
+        const finalReputation =
+          criticalSuccess
+            ? Math.max(
+                1,
+                Math.floor(
+                  reputation * 1.8
+                )
+              )
+            : success
+              ? reputation
+              : -Math.max(
+                  1,
+                  Math.floor(
+                    reputation * 0.5
+                  )
+                );
+
         return {
           ...current,
 
           credits:
-            current.credits + finalReward,
+            current.credits +
+            finalReward,
 
           xp:
-            current.xp + finalXp,
+            current.xp +
+            finalXp,
 
           reputation:
             Math.max(
               0,
               current.reputation +
-                (success || criticalSuccess
-                  ? reputationReward
-                  : -Math.max(
-                      1,
-                      Math.floor(
-                        reputation * 0.5
-                      )
-                    ))
+                finalReputation
             ),
 
           totalOperations:
@@ -948,6 +945,14 @@ export function GameProvider({
       security: number,
       risk: number
     ) => {
+      /*
+       * Legacy timer operation.
+       *
+       * Interactive Operation V2 does NOT use this
+       * function. It is kept only for compatibility
+       * with older screens/components.
+       */
+
       let claimed = false;
 
       setGame((current) => {
@@ -1011,88 +1016,68 @@ export function GameProvider({
             xp * xpMultiplier
           );
 
-        if (success) {
-          return {
-            ...current,
-
-            credits:
-              current.credits +
-              finalReward,
-
-            xp:
-              current.xp +
-              finalXp,
-
-            reputation:
-              current.reputation +
-              reputation,
-
-            trace: Math.min(
-              100,
-              current.trace +
-                Math.max(
-                  1,
-                  Math.floor(
-                    3 -
-                      stats.traceReduction /
-                        20
-                  )
-                )
-            ),
-
-            totalOperations:
-              current.totalOperations + 1,
-
-            successfulOperations:
-              current.successfulOperations + 1,
-
-            completedToday:
-              current.completedToday + 1,
-
-            operations:
-              current.operations.filter(
-                (item) =>
-                  item.id !==
-                  operationId
-              ),
-
-            lastActiveAt:
-              Date.now(),
-          };
-        }
-
         return {
           ...current,
 
-          reputation: Math.max(
-            0,
-            current.reputation -
-              Math.max(
-                1,
-                Math.floor(
-                  risk / 12
-                )
-              )
-          ),
+          credits:
+            current.credits +
+            (success
+              ? finalReward
+              : 0),
 
-          trace: Math.min(
-            100,
-            current.trace +
-              Math.max(
-                3,
-                Math.floor(
-                  risk / 8 -
-                    stats.traceReduction /
-                      15
-                )
-              )
-          ),
+          xp:
+            current.xp +
+            (success
+              ? finalXp
+              : 0),
+
+          reputation:
+            Math.max(
+              0,
+              current.reputation +
+                (success
+                  ? reputation
+                  : -Math.max(
+                      1,
+                      Math.floor(
+                        risk / 12
+                      )
+                    ))
+            ),
+
+          trace:
+            Math.min(
+              100,
+              current.trace +
+                (success
+                  ? Math.max(
+                      1,
+                      Math.floor(
+                        3 -
+                          stats.traceReduction /
+                            20
+                      )
+                    )
+                  : Math.max(
+                      3,
+                      Math.floor(
+                        risk / 8 -
+                          stats.traceReduction /
+                            15
+                      )
+                    ))
+            ),
 
           totalOperations:
             current.totalOperations + 1,
 
+          successfulOperations:
+            current.successfulOperations +
+            (success ? 1 : 0),
+
           failedOperations:
-            current.failedOperations + 1,
+            current.failedOperations +
+            (success ? 0 : 1),
 
           completedToday:
             current.completedToday + 1,
@@ -1112,6 +1097,7 @@ export function GameProvider({
     },
     [stats]
   );
+
 
   const buyItem = useCallback(
     (
