@@ -208,6 +208,52 @@ export default function HomeScreen() {
           ))}
         </View>
 
+        <View style={styles.heatCard}>
+          <View style={styles.heatHeader}>
+            <View>
+              <Text style={styles.heatTitle}>
+                DIGITAL HEAT
+              </Text>
+              <Text style={styles.heatSubtitle}>
+                TRACE RESPONSE LEVEL
+              </Text>
+            </View>
+
+            <Text style={styles.heatLevel}>
+              HEAT {stats.heatLevel}
+            </Text>
+          </View>
+
+          <View style={styles.heatBar}>
+            <View
+              style={[
+                styles.heatFill,
+                {
+                  width: `${game.trace}%`,
+                },
+              ]}
+            />
+          </View>
+
+          <View style={styles.heatBottom}>
+            <Text style={styles.heatTrace}>
+              TRACE {game.trace}%
+            </Text>
+
+            <Text style={styles.heatStatus}>
+              {game.trace >= 90
+                ? 'CRITICAL'
+                : game.trace >= 70
+                  ? 'DANGEROUS'
+                  : game.trace >= 50
+                    ? 'ELEVATED'
+                    : game.trace >= 25
+                      ? 'WATCHED'
+                      : 'LOW'}
+            </Text>
+          </View>
+        </View>
+
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>NETWORK ACTIVITY</Text>
           <Text style={styles.sectionStatus}>LIVE</Text>
@@ -475,6 +521,73 @@ const styles = StyleSheet.create({
     fontSize: 7,
     fontWeight: '900',
     letterSpacing: 1,
+  },
+
+  heatCard: {
+    backgroundColor: '#090D15',
+    borderWidth: 1,
+    borderColor: '#17202D',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
+  },
+
+  heatHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+
+  heatTitle: {
+    color: '#AEB7C2',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+
+  heatSubtitle: {
+    color: '#59616F',
+    fontSize: 5.5,
+    fontWeight: '800',
+    marginTop: 3,
+  },
+
+  heatLevel: {
+    color: '#FF426D',
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 0.7,
+  },
+
+  heatBar: {
+    height: 5,
+    backgroundColor: '#18202B',
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginTop: 10,
+  },
+
+  heatFill: {
+    height: '100%',
+    backgroundColor: '#FF426D',
+  },
+
+  heatBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 7,
+  },
+
+  heatTrace: {
+    color: '#697582',
+    fontSize: 6,
+    fontWeight: '900',
+  },
+
+  heatStatus: {
+    color: '#A86C78',
+    fontSize: 6,
+    fontWeight: '900',
   },
 
   container: {

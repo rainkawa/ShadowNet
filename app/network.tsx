@@ -18,6 +18,14 @@ type Target = {
   reward: number;
   xp: number;
   trace: number;
+
+  level: number;
+  rarity:
+    | 'COMMON'
+    | 'UNCOMMON'
+    | 'RARE'
+    | 'EPIC';
+
   status: 'ONLINE' | 'LOCKED' | 'SCANNING';
   icon: string;
 };
@@ -25,6 +33,8 @@ type Target = {
 const targets: Target[] = [
   {
     id: 'node_01',
+    level: 1,
+    rarity: 'COMMON',
     name: 'LOCAL GATEWAY',
     type: 'NETWORK NODE',
     security: 18,
@@ -36,6 +46,8 @@ const targets: Target[] = [
   },
   {
     id: 'node_02',
+    level: 2,
+    rarity: 'COMMON',
     name: 'PRIVATE SERVER',
     type: 'PRIVATE INFRA',
     security: 32,
@@ -47,6 +59,8 @@ const targets: Target[] = [
   },
   {
     id: 'node_03',
+    level: 5,
+    rarity: 'UNCOMMON',
     name: 'CORPORATE DB',
     type: 'DATABASE',
     security: 51,
@@ -58,6 +72,8 @@ const targets: Target[] = [
   },
   {
     id: 'node_04',
+    level: 10,
+    rarity: 'RARE',
     name: 'FINANCIAL CORE',
     type: 'HIGH VALUE',
     security: 68,
@@ -69,6 +85,8 @@ const targets: Target[] = [
   },
   {
     id: 'node_05',
+    level: 15,
+    rarity: 'EPIC',
     name: 'GHOST NETWORK',
     type: 'UNKNOWN',
     security: 86,
@@ -487,14 +505,32 @@ export default function NetworkScreen() {
         </View>
 
         {targets.map((target) => {
-          const active = selected === target.id;
-          const locked = target.status === 'LOCKED';
+          const active =
+            selected === target.id;
+
+          const levelLocked =
+            game.level < target.level;
+
+          const locked =
+            target.status === 'LOCKED' ||
+            levelLocked;
 
           return (
             <Pressable
               key={target.id}
               onPress={() => {
+                if (
+                  game.level <
+                  target.level
+                ) {
+                  setMessage(
+                    `${target.name} // LEVEL ${target.level} REQUIRED`
+                  );
+                  return;
+                }
+
                 setSelected(target.id);
+
                 setMessage(
                   `${target.name} // TARGET SELECTED`
                 );
@@ -550,6 +586,16 @@ export default function NetworkScreen() {
                 <Text style={styles.targetType}>
                   {target.type}
                 </Text>
+
+                <View style={styles.targetMetaRow}>
+                  <Text style={styles.targetLevel}>
+                    LVL {target.level}
+                  </Text>
+
+                  <Text style={styles.targetRarity}>
+                    {target.rarity}
+                  </Text>
+                </View>
 
                 <View style={styles.targetStats}>
                   <View>
@@ -982,6 +1028,25 @@ const styles = StyleSheet.create({
     fontSize: 6,
     fontWeight: '700',
     marginTop: 3,
+  },
+
+  targetMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 5,
+  },
+
+  targetLevel: {
+    color: '#00B8FF',
+    fontSize: 5.5,
+    fontWeight: '900',
+    marginRight: 8,
+  },
+
+  targetRarity: {
+    color: '#59616F',
+    fontSize: 5.5,
+    fontWeight: '900',
   },
 
   targetStats: {

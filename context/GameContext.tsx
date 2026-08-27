@@ -27,6 +27,10 @@ type OperationState = {
 
   completed: boolean;
   outcome: OperationOutcome;
+
+  finalReward?: number;
+  finalXp?: number;
+  finalTrace?: number;
 };
 
 type GameState = {
@@ -47,6 +51,8 @@ type GameState = {
   infrastructure: Record<string, number>;
 
   operations: OperationState[];
+
+  operationHistory: OperationState[];
 
   completedToday: number;
   lastOperationResetAt: number;
@@ -187,6 +193,8 @@ const INITIAL_STATE: GameState = {
   },
 
   operations: [],
+
+  operationHistory: [],
 
   completedToday: 0,
   lastOperationResetAt: Date.now(),
@@ -1297,6 +1305,20 @@ export function GameProvider({
                     operationId
                 ),
 
+              operationHistory: [
+                {
+                  ...operation,
+                  completed: true,
+                  outcome:
+                    'CRITICAL_FAILURE',
+                  finalReward: 0,
+                  finalXp: 0,
+                  finalTrace:
+                    current.trace + 2,
+                },
+                ...current.operationHistory,
+              ].slice(0, 50),
+
               lastActiveAt:
                 Date.now(),
             };
@@ -1469,6 +1491,32 @@ export function GameProvider({
                   item.id !==
                   operationId
               ),
+
+            operationHistory: [
+              {
+                ...operation,
+                completed: true,
+                outcome:
+                  criticalSuccess
+                    ? 'SUCCESS'
+                    : 'SUCCESS',
+                finalReward:
+                  finalReward,
+                finalXp:
+                  finalXp,
+                finalTrace:
+                  current.trace +
+                  Math.max(
+                    1,
+                    Math.floor(
+                      generatedTrace -
+                        stats.traceReduction /
+                          20
+                    )
+                  ),
+              },
+              ...current.operationHistory,
+            ].slice(0, 50),
 
             lastActiveAt:
               Date.now(),
