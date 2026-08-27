@@ -869,7 +869,11 @@ export default function OperationsScreen() {
 
   const [phase, setPhase] = useState(0);
   const [mistakes, setMistakes] = useState(0);
-  const [phaseRoll, setPhaseRoll] = useState<number | null>(null);
+  const [phaseRoll, setPhaseRoll] =
+    useState<number | null>(null);
+
+  const [decisionHistory, setDecisionHistory] =
+    useState<string[]>([]);
   const [operationTrace, setOperationTrace] =
     useState(0);
 
@@ -906,8 +910,139 @@ export default function OperationsScreen() {
       ? choices[activeMission.id]?.[phase]
       : undefined;
 
-  const phaseChoices =
-    activePhase?.choices ?? [];
+  /*
+   * BRANCHING OPERATION SYSTEM
+   *
+   * Aynı faz artık her zaman aynı üç seçeneği göstermiyor.
+   * Önceki kararlar sonraki seçenekleri etkiliyor.
+   */
+  const phaseChoices = useMemo(() => {
+    if (!activePhase) {
+      return [];
+    }
+
+    let available =
+      [...activePhase.choices];
+
+    const hasHistory =
+      (id: string) =>
+        decisionHistory.includes(id);
+
+    /*
+     * Yüksek trace:
+     * agresif seçenekler giderek kapanır.
+     */
+    if (game.trace >= 70) {
+      available =
+        available.filter(
+          (choice) =>
+            choice.trace <= 8
+        );
+    }
+
+    /*
+     * Çok hata:
+     * en riskli seçenekleri kaldır.
+     */
+    if (mistakes >= 1) {
+      available =
+        available.filter(
+          (choice) =>
+            choice.trace <= 14
+        );
+    }
+
+    /*
+     * Önceki fazda agresif seçim yaptıysa
+     * sonraki fazda güvenli seçimlerin arasına
+     * bir riskli fırsat eklenmiş gibi davran.
+     *
+     * Burada seçim havuzu tamamen kilitlenmiyor;
+     * sadece bazı seçenekler eleniyor.
+     */
+    const aggressiveHistory =
+      decisionHistory.some(
+        (id) =>
+          [
+            'active_probe',
+            'direct',
+            'aggressive',
+            'full_dump',
+            'extended',
+            'flood',
+            'brute',
+            'hard_crash',
+            'everything',
+            'full_dump',
+            'force',
+            'expand',
+            'network_dump',
+            'stay',
+          ].includes(id)
+      );
+
+    if (
+      aggressiveHistory &&
+      phase >= 2
+    ) {
+      available =
+        available.filter(
+          (choice) =>
+            choice.id !==
+            'clean_exit'
+        );
+    }
+
+    /*
+     * Aynı vektörü tekrar tekrar seçmek mümkün değil.
+     * Böylece oyuncu tek güvenli seçeneği spamlayamaz.
+     */
+    if (
+      decisionHistory.length > 0 &&
+      phase > 0
+    ) {
+      const previous =
+        decisionHistory[
+          decisionHistory.length - 1
+        ];
+
+      const filtered =
+        available.filter(
+          (choice) =>
+            choice.id !== previous
+        );
+
+      if (
+        filtered.length > 0
+      ) {
+        available = filtered;
+      }
+    }
+
+    /*
+     * Her seçimde en az iki alternatif kalmasını
+     * mümkün olduğunca koru.
+     */
+    if (
+      available.length === 0
+    ) {
+      return activePhase.choices.slice(
+        0,
+        Math.min(
+          2,
+          activePhase.choices.length
+        )
+      );
+    }
+
+    return available;
+  }, [
+    activePhase,
+    decisionHistory,
+    game.trace,
+    mistakes,
+    phase,
+  ]);
 
   const resetOperation = () => {
     setSelectedMissionId(null);
@@ -916,6 +1051,7 @@ export default function OperationsScreen() {
     setMistakes(0);
     setOperationTrace(0);
     setPhaseRoll(null);
+    setDecisionHistory([]);
     setOutcome(null);
     setMessage(
       'SELECT A CONTRACT TO BEGIN'
@@ -952,6 +1088,7 @@ export default function OperationsScreen() {
     setMistakes(0);
     setOperationTrace(0);
     setPhaseRoll(null);
+    setDecisionHistory([]);
     setOutcome(null);
     setMessage(
       'CONNECTION ESTABLISHED // AWAITING INPUT'
@@ -1120,6 +1257,17 @@ export default function OperationsScreen() {
     const nextMistakes =
       mistakes +
       (success ? 0 : 1);
+
+    /*
+     * Karar geçmişini kaydet.
+     * Sonraki fazlar bu geçmişi kullanıyor.
+     */
+    setDecisionHistory(
+      (current) => [
+        ...current,
+        choice.id,
+      ]
+    );
 
     setPhaseRoll(
       Math.floor(roll)
@@ -1378,6 +1526,10 @@ export default function OperationsScreen() {
                 <View>
                   <Text style={styles.phaseLabel}>
                     PHASE {phase + 1} / 5
+                  </Text>
+
+                  <Text style={styles.decisionCount}>
+                    DECISIONS {decisionHistory.length}
                   </Text>
 
                   <Text style={styles.operationTitle}>
@@ -2100,6 +2252,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 3,
     maxWidth: 220,
+  },
+
+  decisionCount: {
+    color: '#3F7180',
+    fontSize: 5.5,
+    fontWeight: '800',
+    marginTop: 3,
+    letterSpacing: 0.5,
   },
 
   traceBox: {
