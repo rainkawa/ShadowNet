@@ -39,6 +39,9 @@ export default function HomeScreen() {
     rank,
     rankNext,
     rankProgress,
+    rankUpVersion,
+    rankUpMessage,
+    clearRankUp,
   } = useGame();
 
   // Idle gelirini canlı olarak üret.
@@ -72,6 +75,40 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {rankUpMessage && (
+        <View
+          key={rankUpVersion}
+          style={styles.rankUpOverlay}
+        >
+          <View style={styles.rankUpCard}>
+            <Text style={styles.rankUpLabel}>
+              SYSTEM PROMOTION
+            </Text>
+
+            <Text style={styles.rankUpTitle}>
+              RANK UP
+            </Text>
+
+            <Text style={styles.rankUpRank}>
+              {rank}
+            </Text>
+
+            <Text style={styles.rankUpMessage}>
+              {rankUpMessage}
+            </Text>
+
+            <Pressable
+              onPress={clearRankUp}
+              style={styles.rankUpButton}
+            >
+              <Text style={styles.rankUpButtonText}>
+                CONTINUE
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -370,6 +407,76 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  rankUpOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 100,
+    backgroundColor: '#05070DEC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+
+  rankUpCard: {
+    width: '100%',
+    backgroundColor: '#090D15',
+    borderWidth: 1,
+    borderColor: '#00F5A0',
+    borderRadius: 14,
+    padding: 22,
+    alignItems: 'center',
+  },
+
+  rankUpLabel: {
+    color: '#59616F',
+    fontSize: 6.5,
+    fontWeight: '900',
+    letterSpacing: 1.4,
+  },
+
+  rankUpTitle: {
+    color: '#00F5A0',
+    fontSize: 25,
+    fontWeight: '900',
+    letterSpacing: 3,
+    marginTop: 8,
+  },
+
+  rankUpRank: {
+    color: '#F2F5F7',
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 2,
+    marginTop: 8,
+  },
+
+  rankUpMessage: {
+    color: '#65707C',
+    fontSize: 7,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginTop: 6,
+  },
+
+  rankUpButton: {
+    width: '100%',
+    backgroundColor: '#00F5A0',
+    borderRadius: 7,
+    paddingVertical: 11,
+    alignItems: 'center',
+    marginTop: 18,
+  },
+
+  rankUpButtonText: {
+    color: '#03100A',
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+
   container: {
     flex: 1,
     backgroundColor: '#05070D',
