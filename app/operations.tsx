@@ -915,6 +915,7 @@ export default function OperationsScreen() {
     setPhase(0);
     setMistakes(0);
     setOperationTrace(0);
+    setPhaseRoll(null);
     setOutcome(null);
     setMessage(
       'SELECT A CONTRACT TO BEGIN'
@@ -950,6 +951,7 @@ export default function OperationsScreen() {
     setPhase(0);
     setMistakes(0);
     setOperationTrace(0);
+    setPhaseRoll(null);
     setOutcome(null);
     setMessage(
       'CONNECTION ESTABLISHED // AWAITING INPUT'
@@ -1453,8 +1455,19 @@ export default function OperationsScreen() {
                   <Text style={styles.success}>
                     &gt;{' '}
                   </Text>
-                  awaiting operator decision...
+                  {activePhase
+                    ? `${activePhase.title} // ${activePhase.subtitle}`
+                    : 'awaiting operator decision...'}
                 </Text>
+
+                {phaseRoll !== null && (
+                  <Text style={styles.terminalLine}>
+                    <Text style={styles.prompt}>
+                      &gt;{' '}
+                    </Text>
+                    last roll // {phaseRoll}
+                  </Text>
+                )}
               </View>
 
               <Text style={styles.instruction}>
@@ -1507,11 +1520,31 @@ export default function OperationsScreen() {
                         {choice.description}
                       </Text>
 
-                      <Text
-                        style={styles.choiceMeta}
-                      >
-                        BASE {choice.baseSuccess}% // TRACE +{choice.trace}% // PAYOUT {choice.rewardModifier >= 0 ? '+' : ''}{choice.rewardModifier}%
-                      </Text>
+                      <View style={styles.choiceMetaRow}>
+                        <Text style={styles.choiceMeta}>
+                          {choice.trace <= 3
+                            ? 'LOW TRACE'
+                            : choice.trace <= 8
+                              ? 'MODERATE TRACE'
+                              : 'HIGH TRACE'}
+                        </Text>
+
+                        <Text style={styles.choiceMeta}>
+                          {choice.baseSuccess >= 75
+                            ? 'STABLE'
+                            : choice.baseSuccess >= 55
+                              ? 'VOLATILE'
+                              : 'DANGEROUS'}
+                        </Text>
+
+                        <Text style={styles.choiceMeta}>
+                          {choice.rewardModifier > 0
+                            ? `HIGH PAYOUT +${choice.rewardModifier}%`
+                            : choice.rewardModifier < 0
+                              ? `LOW PAYOUT ${choice.rewardModifier}%`
+                              : 'STANDARD PAYOUT'}
+                        </Text>
+                      </View>
                     </View>
 
                     <Text
@@ -1808,7 +1841,7 @@ export default function OperationsScreen() {
                             styles.duration
                           }
                         >
-                          3 PHASES
+                          5 PHASES
                         </Text>
                       </View>
 
@@ -2213,11 +2246,18 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
+  choiceMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 5,
+  },
+
   choiceMeta: {
     color: '#3F7180',
     fontSize: 5.5,
     fontWeight: '800',
-    marginTop: 5,
+    marginRight: 8,
+    marginTop: 2,
     letterSpacing: 0.35,
   },
 
