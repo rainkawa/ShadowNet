@@ -842,32 +842,20 @@ export function GameProvider({
               ? 1
               : 0.6;
 
-        const intelMultiplier =
-          current.ownedItems.includes(
-            'intel'
-          )
-            ? 1.25
-            : 1;
-
-        const scriptsMultiplier =
-          current.unlockedSkills.includes(
-            'scripts'
-          )
-            ? 1.10
-            : 1;
-
         const finalReward =
           Math.floor(
             reward *
               rewardMultiplier *
-              intelMultiplier
+              (1 +
+                stats.rewardBonus / 100)
           );
 
         const finalXp =
           Math.floor(
             xp *
               xpMultiplier *
-              scriptsMultiplier
+              (1 +
+                stats.xpBonus / 100)
           );
 
         const finalReputation =
@@ -893,6 +881,23 @@ export function GameProvider({
           credits:
             current.credits +
             finalReward,
+
+          operations:
+            current.operations.map(
+              (item) =>
+                item.id === operationId
+                  ? {
+                      ...item,
+                      completed: true,
+                      outcome:
+                        criticalSuccess
+                          ? 'SUCCESS'
+                          : success
+                            ? 'SUCCESS'
+                            : 'PARTIAL',
+                    }
+                  : item
+            ),
 
           xp:
             current.xp +
@@ -932,7 +937,7 @@ export function GameProvider({
 
       return resolved;
     },
-    []
+    [stats]
   );
 
 
