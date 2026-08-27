@@ -414,6 +414,7 @@ export default function OperationsScreen() {
   const [outcome, setOutcome] = useState<
     | 'SUCCESS'
     | 'PARTIAL'
+    | 'CRITICAL_SUCCESS'
     | 'FAILURE'
     | 'CRITICAL_FAILURE'
     | null
@@ -595,11 +596,11 @@ export default function OperationsScreen() {
     }
 
     if (phase >= 2) {
-      setOutcome(
-        nextMistakes === 0
-          ? 'SUCCESS'
-          : 'PARTIAL'
-      );
+      if (nextMistakes === 0) {
+        setOutcome('SUCCESS');
+      } else {
+        setOutcome('PARTIAL');
+      }
     } else {
       setPhase(
         (current) =>
@@ -893,15 +894,21 @@ export default function OperationsScreen() {
                     style={styles.outcomeText}
                   >
                     {outcome ===
-                    'SUCCESS'
-                      ? `+$${activeMission.reward.toLocaleString()} // +${activeMission.xp} XP`
+                    'CRITICAL_SUCCESS'
+                      ? `CRITICAL PAYOUT // +$${Math.floor(
+                          activeMission.reward * 1.75
+                        ).toLocaleString()} // +${Math.floor(
+                          activeMission.xp * 1.5
+                        )} XP`
                       : outcome ===
-                        'PARTIAL'
-                        ? `PARTIAL PAYOUT // +$${Math.floor(
-                            activeMission.reward *
-                              0.45
-                          ).toLocaleString()}`
-                        : `TRACE LOCK // NO PAYOUT`}
+                        'SUCCESS'
+                        ? `+$${activeMission.reward.toLocaleString()} // +${activeMission.xp} XP`
+                        : outcome ===
+                          'PARTIAL'
+                          ? `PARTIAL PAYOUT // +$${Math.floor(
+                              activeMission.reward * 0.45
+                            ).toLocaleString()}`
+                          : `TRACE LOCK // NO PAYOUT`}
                   </Text>
 
                   <Pressable
@@ -1567,6 +1574,11 @@ const styles = StyleSheet.create({
 
   outcomeSuccess: {
     borderColor: '#14513E',
+  },
+
+  outcomeCritical: {
+    borderColor: '#00B8FF',
+    backgroundColor: '#07151F',
   },
 
   outcomePartial: {
