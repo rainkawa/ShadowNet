@@ -1620,6 +1620,10 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
 
+  lockedText: {
+    color: '#59616F',
+  },
+
   missionIdentity: {
     flex: 1,
   },
