@@ -883,6 +883,18 @@ export default function OperationsScreen() {
   const [operationTrace, setOperationTrace] =
     useState(0);
 
+  const [operationEvent, setOperationEvent] =
+    useState<string | null>(null);
+
+  const [eventEffect, setEventEffect] =
+    useState<
+      | 'SECURITY'
+      | 'INSTABILITY'
+      | 'OPPORTUNITY'
+      | 'CLEAN'
+      | null
+    >(null);
+
   const [message, setMessage] = useState(
     'SELECT A CONTRACT TO BEGIN'
   );
@@ -929,6 +941,65 @@ export default function OperationsScreen() {
 
     let available =
       [...activePhase.choices];
+
+    /*
+     * EVENT EFFECTS
+     *
+     * Event sonraki fazı gerçekten değiştirir.
+     */
+    if (
+      eventEffect === 'SECURITY'
+    ) {
+      available =
+        available.filter(
+          (choice) =>
+            choice.trace <= 8
+        );
+    }
+
+    if (
+      eventEffect === 'INSTABILITY'
+    ) {
+      available =
+        available.filter(
+          (choice) =>
+            choice.baseSuccess >= 55
+        );
+    }
+
+    if (
+      eventEffect === 'OPPORTUNITY'
+    ) {
+      const highValue =
+        available.filter(
+          (choice) =>
+            choice.rewardModifier >= 20
+        );
+
+      if (
+        highValue.length > 0
+      ) {
+        available =
+          highValue;
+      }
+    }
+
+    if (
+      eventEffect === 'CLEAN'
+    ) {
+      const clean =
+        available.filter(
+          (choice) =>
+            choice.trace <= 5
+        );
+
+      if (
+        clean.length >= 2
+      ) {
+        available =
+          clean;
+      }
+    }
 
     /*
      * Yüksek trace:
@@ -1041,6 +1112,7 @@ export default function OperationsScreen() {
   }, [
     activePhase,
     decisionHistory,
+    eventEffect,
     game.trace,
     mistakes,
     phase,
@@ -1056,6 +1128,8 @@ export default function OperationsScreen() {
     setDecisionHistory([]);
     setRewardModifierTotal(0);
     setXpModifierTotal(0);
+    setOperationEvent(null);
+    setEventEffect(null);
     setOutcome(null);
     setMessage(
       'SELECT A CONTRACT TO BEGIN'
@@ -1095,6 +1169,8 @@ export default function OperationsScreen() {
     setDecisionHistory([]);
     setRewardModifierTotal(0);
     setXpModifierTotal(0);
+    setOperationEvent(null);
+    setEventEffect(null);
     setOutcome(null);
     setMessage(
       'CONNECTION ESTABLISHED // AWAITING INPUT'
@@ -1314,6 +1390,93 @@ export default function OperationsScreen() {
     setOperationTrace(
       (current) =>
         current + generatedTrace
+    );
+
+    /*
+     * EVENT ENGINE
+     *
+     * Event tamamen rastgele değil.
+     * Trace + seçim riski + başarısızlık
+     * event ihtimalini belirliyor.
+     */
+    const eventPressure =
+      Math.min(
+        82,
+        Math.max(
+          0,
+          generatedTrace * 2 +
+            Math.max(
+              0,
+              game.trace - 20
+            ) *
+              0.40 +
+            (success ? 0 : 20)
+        )
+      );
+
+    const eventRoll =
+      Math.random() * 100;
+
+    let generatedEvent:
+      | string
+      | null = null;
+
+    let generatedEffect:
+      | 'SECURITY'
+      | 'INSTABILITY'
+      | 'OPPORTUNITY'
+      | 'CLEAN'
+      | null = null;
+
+    if (
+      eventRoll < eventPressure
+    ) {
+      if (
+        game.trace >= 70 ||
+        generatedTrace >= 16
+      ) {
+        generatedEvent =
+          'SECURITY ALERT // DEFENSIVE RESPONSE DETECTED';
+
+        generatedEffect =
+          'SECURITY';
+      } else if (!success) {
+        generatedEvent =
+          'ROUTE INSTABILITY // CONNECTION DEGRADED';
+
+        generatedEffect =
+          'INSTABILITY';
+      } else if (
+        choice.rewardModifier >= 40
+      ) {
+        generatedEvent =
+          'HIGH-VALUE SIGNAL // EXTRA OPPORTUNITY DETECTED';
+
+        generatedEffect =
+          'OPPORTUNITY';
+      } else if (
+        choice.trace <= 3
+      ) {
+        generatedEvent =
+          'CLEAN WINDOW // LOW DETECTION';
+
+        generatedEffect =
+          'CLEAN';
+      } else {
+        generatedEvent =
+          'UNIDENTIFIED TRAFFIC // TARGET MAY HAVE NOTICED';
+
+        generatedEffect =
+          'SECURITY';
+      }
+    }
+
+    setOperationEvent(
+      generatedEvent
+    );
+
+    setEventEffect(
+      generatedEffect
     );
 
     advanceOperation(
@@ -1717,6 +1880,30 @@ export default function OperationsScreen() {
                   </Text>
                 )}
               </View>
+
+              {operationEvent && (
+                <View style={styles.eventCard}>
+                  <Text style={styles.eventLabel}>
+                    LIVE EVENT
+                  </Text>
+
+                  <Text style={styles.eventText}>
+                    {operationEvent}
+                  </Text>
+
+                  {eventEffect && (
+                    <Text style={styles.eventEffect}>
+                      {eventEffect === 'SECURITY'
+                        ? 'NEXT PHASE // HIGH-RISK VECTORS RESTRICTED'
+                        : eventEffect === 'INSTABILITY'
+                          ? 'NEXT PHASE // LOW-SUCCESS VECTORS RESTRICTED'
+                          : eventEffect === 'OPPORTUNITY'
+                            ? 'NEXT PHASE // HIGH-VALUE ROUTES PRIORITIZED'
+                            : 'NEXT PHASE // LOW-TRACE ROUTES PRIORITIZED'}
+                    </Text>
+                  )}
+                </View>
+              )}
 
               <Text style={styles.instruction}>
                 SELECT YOUR VECTOR
@@ -2449,6 +2636,40 @@ const styles = StyleSheet.create({
 
   success: {
     color: '#00F5A0',
+  },
+
+  eventCard: {
+    backgroundColor: '#0B1018',
+    borderWidth: 1,
+    borderColor: '#243247',
+    borderRadius: 8,
+    padding: 9,
+    marginTop: 9,
+    marginBottom: 2,
+  },
+
+  eventLabel: {
+    color: '#4B7184',
+    fontSize: 5.5,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+
+  eventText: {
+    color: '#C2CBD4',
+    fontSize: 7,
+    fontWeight: '800',
+    lineHeight: 13,
+    marginTop: 4,
+  },
+
+  eventEffect: {
+    color: '#3F7180',
+    fontSize: 5.5,
+    fontWeight: '900',
+    lineHeight: 11,
+    marginTop: 5,
+    letterSpacing: 0.3,
   },
 
   instruction: {
