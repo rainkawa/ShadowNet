@@ -824,7 +824,7 @@ export function GameProvider({
 
         const outcome =
           criticalSuccess
-            ? 'SUCCESS'
+            ? 'CRITICAL_SUCCESS'
             : success
               ? 'SUCCESS'
               : 'PARTIAL';
@@ -857,44 +857,42 @@ export function GameProvider({
                   )
                 );
 
+        const intelMultiplier =
+          current.ownedItems.includes(
+            'intel'
+          )
+            ? 1.25
+            : 1;
+
+        const scriptsMultiplier =
+          current.unlockedSkills.includes(
+            'scripts'
+          )
+            ? 1.1
+            : 1;
+
         const finalReward =
           Math.floor(
             reward *
               rewardMultiplier *
-              (1 +
-                current.ownedItems.includes(
-                  'intel'
-                )
-                  ? 0.25
-                  : 0)
+              intelMultiplier
           );
 
         const finalXp =
           Math.floor(
             xp *
               xpMultiplier *
-              (1 +
-                current.unlockedSkills.includes(
-                  'scripts'
-                )
-                  ? 0.1
-                  : 0)
+              scriptsMultiplier
           );
 
         return {
           ...current,
 
           credits:
-            current.credits +
-            (success || criticalSuccess
-              ? finalReward
-              : finalReward),
+            current.credits + finalReward,
 
           xp:
-            current.xp +
-            (success || criticalSuccess
-              ? finalXp
-              : finalXp),
+            current.xp + finalXp,
 
           reputation:
             Math.max(
