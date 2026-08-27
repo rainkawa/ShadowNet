@@ -498,22 +498,77 @@ export default function OperationsScreen() {
       return;
     }
 
+    const hasProxy =
+      game.unlockedSkills.includes(
+        'proxy_chain'
+      ) ||
+      game.ownedItems.includes(
+        'proxy'
+      );
+
+    const hasExploit =
+      game.unlockedSkills.includes(
+        'exploit_basics'
+      ) ||
+      game.ownedItems.includes(
+        'exploit'
+      );
+
+    const traceReduction =
+      stats.traceReduction;
+
+    const correctedTrace =
+      choice.correct
+        ? Math.max(
+            0,
+            choice.trace -
+              Math.floor(
+                traceReduction / 5
+              )
+          )
+        : choice.trace;
+
+    let effectiveCorrect =
+      choice.correct;
+
+    // Skill / equipment can recover
+    // selected risky vectors.
+    if (
+      !choice.correct &&
+      phase === 1 &&
+      hasProxy &&
+      choice.id === 'direct'
+    ) {
+      effectiveCorrect = true;
+    }
+
+    if (
+      !choice.correct &&
+      phase === 0 &&
+      hasExploit &&
+      choice.id === 'probe'
+    ) {
+      effectiveCorrect = true;
+    }
+
     const nextMistakes =
-      mistakes + (choice.correct ? 0 : 1);
+      mistakes +
+      (effectiveCorrect ? 0 : 1);
 
     const nextTrace =
-      operationTrace + choice.trace;
+      operationTrace +
+      correctedTrace;
 
     setMistakes(nextMistakes);
     setOperationTrace(nextTrace);
 
     advanceOperation(
       activeOperation.id,
-      choice.correct,
-      choice.trace
+      effectiveCorrect,
+      correctedTrace
     );
 
-    if (!choice.correct) {
+    if (!effectiveCorrect) {
       if (nextMistakes >= 2) {
         setOutcome(
           'CRITICAL_FAILURE'
@@ -523,13 +578,13 @@ export default function OperationsScreen() {
           'SECURITY SYSTEM // TRACE LOCK'
         );
 
-        setSelectedOperationId(null);
-
         return;
       }
 
       setMessage(
-        `WARNING // TRACE +${choice.trace}%`
+        correctedTrace > 0
+          ? `WARNING // TRACE +${correctedTrace}%`
+          : 'WARNING // TRACE MITIGATED'
       );
     } else {
       setMessage(
@@ -540,14 +595,18 @@ export default function OperationsScreen() {
     }
 
     if (phase >= 2) {
-      if (nextMistakes === 0) {
-        setOutcome('SUCCESS');
-      } else {
-        setOutcome('PARTIAL');
-      }
+      setOutcome(
+        nextMistakes === 0
+          ? 'SUCCESS'
+          : 'PARTIAL'
+      );
     } else {
-      setPhase((current) =>
-        Math.min(2, current + 1)
+      setPhase(
+        (current) =>
+          Math.min(
+            2,
+            current + 1
+          )
       );
     }
   };

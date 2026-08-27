@@ -783,23 +783,27 @@ export function GameProvider({
           return current;
         }
 
-        if (
-          operation.outcome ===
-          'CRITICAL_FAILURE'
-        ) {
+        if (operation.outcome === 'CRITICAL_FAILURE') {
+          resolved = true;
+
           return {
             ...current,
+
             totalOperations:
               current.totalOperations + 1,
+
             failedOperations:
               current.failedOperations + 1,
+
             completedToday:
               current.completedToday + 1,
+
             operations:
               current.operations.filter(
                 (item) =>
                   item.id !== operationId
               ),
+
             lastActiveAt:
               Date.now(),
           };
@@ -811,29 +815,70 @@ export function GameProvider({
 
         resolved = true;
 
+        const criticalSuccess =
+          operation.mistakes === 0 &&
+          Math.random() < 0.15;
+
+        const success =
+          operation.mistakes === 0;
+
         const outcome =
-          operation.mistakes === 0
+          criticalSuccess
             ? 'SUCCESS'
-            : 'PARTIAL';
+            : success
+              ? 'SUCCESS'
+              : 'PARTIAL';
 
         const rewardMultiplier =
-          outcome === 'SUCCESS'
-            ? 1
-            : 0.55;
+          criticalSuccess
+            ? 1.75
+            : success
+              ? 1
+              : 0.45;
 
         const xpMultiplier =
-          outcome === 'SUCCESS'
-            ? 1
-            : 0.7;
+          criticalSuccess
+            ? 1.5
+            : success
+              ? 1
+              : 0.6;
+
+        const reputationReward =
+          criticalSuccess
+            ? Math.floor(
+                reputation * 1.8
+              )
+            : success
+              ? reputation
+              : Math.max(
+                  1,
+                  Math.floor(
+                    reputation * 0.5
+                  )
+                );
 
         const finalReward =
           Math.floor(
-            reward * rewardMultiplier
+            reward *
+              rewardMultiplier *
+              (1 +
+                current.ownedItems.includes(
+                  'intel'
+                )
+                  ? 0.25
+                  : 0)
           );
 
         const finalXp =
           Math.floor(
-            xp * xpMultiplier
+            xp *
+              xpMultiplier *
+              (1 +
+                current.unlockedSkills.includes(
+                  'scripts'
+                )
+                  ? 0.1
+                  : 0)
           );
 
         return {
@@ -841,20 +886,27 @@ export function GameProvider({
 
           credits:
             current.credits +
-            finalReward,
+            (success || criticalSuccess
+              ? finalReward
+              : finalReward),
 
           xp:
             current.xp +
-            finalXp,
+            (success || criticalSuccess
+              ? finalXp
+              : finalXp),
 
           reputation:
             Math.max(
               0,
               current.reputation +
-                (outcome === 'SUCCESS'
-                  ? reputation
-                  : Math.floor(
-                      reputation * 0.5
+                (success || criticalSuccess
+                  ? reputationReward
+                  : -Math.max(
+                      1,
+                      Math.floor(
+                        reputation * 0.5
+                      )
                     ))
             ),
 
@@ -863,15 +915,11 @@ export function GameProvider({
 
           successfulOperations:
             current.successfulOperations +
-            (outcome === 'SUCCESS'
-              ? 1
-              : 0),
+            (success ? 1 : 0),
 
           failedOperations:
             current.failedOperations +
-            (outcome === 'PARTIAL'
-              ? 1
-              : 0),
+            (!success ? 1 : 0),
 
           completedToday:
             current.completedToday + 1,
@@ -891,6 +939,7 @@ export function GameProvider({
     },
     []
   );
+
 
   const claimOperation = useCallback(
     (
