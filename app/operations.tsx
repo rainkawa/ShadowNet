@@ -930,10 +930,6 @@ export default function OperationsScreen() {
     let available =
       [...activePhase.choices];
 
-    const hasHistory =
-      (id: string) =>
-        decisionHistory.includes(id);
-
     /*
      * Yüksek trace:
      * agresif seçenekler giderek kapanır.
@@ -1285,12 +1281,26 @@ export default function OperationsScreen() {
      */
     setRewardModifierTotal(
       (current) =>
-        current + choice.rewardModifier
+        Math.min(
+          80,
+          Math.max(
+            -75,
+            current +
+              choice.rewardModifier
+          )
+        )
     );
 
     setXpModifierTotal(
       (current) =>
-        current + choice.xpModifier
+        Math.min(
+          100,
+          Math.max(
+            0,
+            current +
+              choice.xpModifier
+          )
+        )
     );
 
     setPhaseRoll(
@@ -1369,6 +1379,11 @@ export default function OperationsScreen() {
     ) {
       /*
        * Son seçim de dahil olmak üzere tüm yolun modifierı.
+       */
+      /*
+       * Son seçimin modifier'ı state'e henüz
+       * async olarak yazılmadığı için burada ayrıca
+       * ekliyoruz.
        */
       const finalRewardModifier =
         rewardModifierTotal +
@@ -1455,72 +1470,57 @@ export default function OperationsScreen() {
       return;
     }
 
+    /*
+     * UI tarafında biriken operasyon modifierlarını
+     * gerçek kontrat ödülüne çeviriyoruz.
+     *
+     * Modifier toplamı aşırı yükselmesin diye sınırlandırılıyor.
+     */
+    const payoutMultiplier =
+      1 +
+      Math.min(
+        80,
+        Math.max(
+          -75,
+          rewardModifierTotal
+        )
+      ) /
+        100;
+
+    const xpMultiplier =
+      1 +
+      Math.min(
+        100,
+        Math.max(
+          0,
+          xpModifierTotal
+        )
+      ) /
+        100;
+
+    const adjustedReward =
+      Math.max(
+        1,
+        Math.floor(
+          activeMission.reward *
+            payoutMultiplier
+        )
+      );
+
+    const adjustedXp =
+      Math.max(
+        1,
+        Math.floor(
+          activeMission.xp *
+            xpMultiplier
+        )
+      );
+
     const result =
       resolveOperation(
         selectedOperationId,
-        Math.max(
-          1,
-          Math.floor(
-            activeMission.reward *
-              (
-                1 +
-                Math.min(
-                  100,
-                  Math.max(
-                    -75,
-                    rewardModifierTotal +
-                      decisionHistory.reduce(
-                        (sum, id) => {
-                          const phaseData =
-                            choices[
-                              activeMission.id
-                            ] ?? [];
-
-                          for (
-                            const phaseDataItem
-                              of phaseData
-                          ) {
-                            const found =
-                              phaseDataItem.choices.find(
-                                (item) =>
-                                  item.id === id
-                              );
-
-                            if (found) {
-                              return (
-                                sum +
-                                found.rewardModifier
-                              );
-                            }
-                          }
-
-                          return sum;
-                        },
-                        0
-                      )
-                  )
-                ) /
-                  100
-              )
-          )
-        ),
-        Math.max(
-          1,
-          Math.floor(
-            activeMission.xp *
-              (
-                1 +
-                Math.min(
-                  150,
-                  Math.max(
-                    0,
-                    xpModifierTotal
-                  )
-                ) /
-                  100
-              )
-          )
-        ),
+        adjustedReward,
+        adjustedXp,
         5
       );
 
